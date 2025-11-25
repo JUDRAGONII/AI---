@@ -1,0 +1,298 @@
+________________________________________
+AI 投資分析儀 (Gemini Quant) — 系統開發規格書
+•	文件版本： 9.3 (台美股雙擎增強版)
+•	最後更新日期： 2025年11月20日
+•	部署環境： QNAP TS-h973AX (Container Station / Docker Compose)
+________________________________________
+1.0 系統願景與總體介紹
+1.1 專案目標
+本文件旨在詳細闡述「AI 投資分析儀 (Gemini Quant)」應用程式的開發規格。本系統為運行於本地高效能 NAS 的私有化量化決策平台。 核心目標是利用本地企業級硬體的算力與存儲優勢，結合雲端 AI 模型的智慧，打造一個高隱私、低延遲、且完全自主掌控的投資體系。
+系統將整合宏觀經濟數據、市場情緒、個股基本面與技術面資訊，透過量化模型與大型語言模型（LLM）的綜合分析，最終為使用者生成：
+•	每日戰略投資分析報告： 提供市場總體的宏觀視角與戰術建議。
+•	統合究極版決策模板： 針對單一持股的深度分析報告。
+•	個人化投資組合策略： 基於使用者的風險屬性，提供明確的長短期增減倉建議。
+•	投資組合壓力測試： 模擬在極端市場情境下，投資組合的潛在風險與表現。
+•	投資組合優化分析： 透過蒙地卡羅模擬預測未來價值，並利用效率前緣分析尋找最佳風險報酬配置。
+同時，系統將實現全自動化的交易、股利與稅務紀錄、個人化的稅務規劃、目標導向的財務規劃，並提供策略回測、進階技術分析、報告匯出、對話式 AI 分析、策略績效追蹤與行為金融輔導等進階功能。
+1.2 核心理念
+「本地數據霸權，雲端 AI 賦能」 (Local Data Supremacy, Cloud AI Empowerment)
+系統建立在 "Self-Hosted First" 的策略基礎上。所有敏感的交易數據、策略邏輯與回測運算皆在本地 NAS 的 U.2 NVMe SSD (Intel P4510) 上完成，確保極致的 I/O 效能與數據隱私。僅將脫敏後的結構化數據發送至 LLM 進行決策推演。
+1.3 硬體基礎設施與分層儲存策略 (Infrastructure & Storage Tiering)
+系統部署於 QNAP TS-h973AX-32G，採用嚴格的三層式儲存架構：
+•	Tier 0: 極速運算層 (The Engine)
+o	硬體： Intel P4510 2TB U.2 NVMe SSD ×2 (RAID 1)
+o	用途： 系統的心臟。
+	Supabase Database (PostgreSQL): 存放核心數據文件 (/var/lib/postgresql/data)，確保量化回測與即時訊號無延遲。
+	N8N Execution Data: 承載自動化流程的高頻讀寫。
+•	Tier 1: 應用服務層 (The Service)
+o	硬體： WD Red SA500 1TB SATA SSD ×2 (RAID 1)
+o	用途： 系統的軀幹。
+	QNAP QTS 系統: NAS 作業系統。
+	Docker Containers: 運行 Supabase Middleware, N8N App, React Web Server (Nginx)。
+•	Tier 2: 數據湖泊與冷備份層 (The Vault)
+o	硬體： Seagate IronWolf Pro 24TB HDD ×2 (RAID 1)
+o	用途： 系統的記憶庫。
+	Backup: 每日資料庫快照與 Dump 檔。
+	Data Lake: 原始非結構化數據 (PDF 財報, 新聞原始文本, 13F 原始文件)。
+1.4 技術棧概覽 (Software Stack)
+•	後端與資料庫： Supabase (Self-Hosted via Docker) - 提供 PostgreSQL、RESTful API、Realtime 訂閱與 Auth 認證。
+•	流程自動化 (ETL/Logic)： N8N (Self-Hosted via Docker) - 負責外部 API 串接、複雜運算邏輯、AI Agent 編排。
+•	前端互動介面： React - 現代化 SPA 架構，直接與 Supabase 互動，視覺化呈現。
+•	AI 核心： Google Gemini 2.5 Pro (透過 API 呼叫)。
+1.5 開發藍圖：打造數據驅動的決策飛輪
+•	階段一：建立數據基石 (The Foundation) - NAS 架設、Supabase/N8N 部署、歷史數據注入 NVMe。
+•	階段二：激活量化洞察 (The Activation) - 實作六大因子模型、技術指標運算。
+•	階段三：賦予 AI 靈魂 (The Intelligence) - 串接 Gemini API，生成決策報告。
+•	階段四：深化互動與前瞻 (The Engagement) - React 前端開發、即時儀表板、對話式分析。
+•	階段五：構建決策生態 (The Ecosystem) - 行為金融教練、自動化交易輔助。
+________________________________________
+2.0 系統架構與後端設計 (The Core)
+2.1 數據層 (Data Layer)
+2.1.1 混合 API 策略 (多源備援機制)
+為降低風險並確保數據品質，系統將採用 「三層級數據源策略」 (Primary, Secondary, Tertiary)，充分利用高質量的免費資源：
+A. 美國股市 (US Stocks)
+•	主要來源 (Primary): Tiingo API (新增)
+o	理由: 對個人開發者極度友善。免費版提供每月 500 檔股票的高品質收盤價 (EOD)、歷史數據與加密貨幣數據，數據準確度優於 Yahoo。
+•	次要來源 (Secondary): Finnhub API
+o	理由: 免費版提供即時報價 (Real-time Price) 與基本新聞情緒。
+•	備援/歷史來源 (Tertiary): Yahoo Finance (yfinance)
+o	理由: 透過 N8N Python 節點調用。擁有最完整的歷史數據與選擇權鏈 (Option Chain) 數據，作為最後一道防線。
+B. 台灣股市 (TW Stocks)
+•	即時價格 (Real-time): Fugle API (富果)
+o	理由: 台灣最現代化的 API，提供 WebSocket 即時報價。
+•	官方權威數據 (Official):
+o	TWSE OpenAPI (證交所): 上市公司基本面、每日收盤、除權息資訊。
+o	(新增) TPEX OpenAPI (櫃買中心): 關鍵補充。補足「上櫃公司」的數據缺口，確保中小型成長股的數據完整性。
+o	(新增) TDCC Open Data (集保中心): 每週更新的「股權分散表」。這是計算 "AE. 大戶同步率分析儀" 的唯一權威來源，對於台股籌碼分析至關重要。
+•	歷史補漏 (History): Yahoo Finance (yfinance)
+o	理由: 支援台股代碼 (如 2330.TW)，適合快速回補 10 年以上的歷史 K 線。
+C. 宏觀與其他 (Macro & Others)
+•	宏觀經濟: FRED® API (美國權威)、World Bank API (全球比較)。
+•	加密貨幣: CoinGecko API (BTC/ETH 流動性指標)。
+2.1.2 網路爬蟲與另類數據源 (N8N + Python Node)
+•	宏觀與情緒：
+o	爬取 Investing.com, CNN Money (恐懼與貪婪指數)。
+o	Google Trends: 透過 N8N Python 節點監控 "Recession", "Stock Crash" 等關鍵字熱度。
+•	13F 機構持倉： 每季從 Fintel 抓取橋水基金等機構持倉。
+•	社群輿情： 爬取 PTT Stock, Dcard。
+•	結構化新聞： Marketaux API 獲取即時情緒分析數據。
+2.1.3 數據注入與品質控管
+•	智能快取 (Supabase Cache): 對不常變動數據（如公司資料）進行資料庫快取。
+•	批次請求: N8N 負責聚合請求，減少 API 消耗。
+•	錯誤處理: N8N 節點設置 "Retry on Fail" 與指數退避 (Exponential Backoff) 機制。
+2.2 持久層 (Persistence Layer) - Schema 與儲存分層
+表格設計針對 Supabase (PostgreSQL) 優化，並指定儲存位置。
+表格名稱	關鍵欄位	儲存位置 (Tier)	說明
+securities_master	id, ticker, sector	NVMe (Tier 0)	證券主檔，頻繁讀取
+daily_prices	security_id, date, close, vol	NVMe (Tier 0)	核心價格表，分區儲存 (Partitioned)
+quant_scores	security_id, date, value_score	NVMe (Tier 0)	量化因子分數，回測核心
+ai_reports	id, content, sentiment	NVMe (Tier 0)	AI 生成的分析報告
+quarterly_fundamentals	security_id, metric, value	NVMe (Tier 0)	季報基本面數據
+institutional_holdings_13f	manager, security_id, shares	NVMe (Tier 0)	機構持倉數據
+raw_news_archive	source, html_content	HDD (Tier 2)	原始新聞存檔，節省 SSD 空間
+user_portfolios	user_id, security_id, shares	NVMe (Tier 0)	使用者持倉 (RLS 保護)
+transaction_logs	user_id, action, price	NVMe (Tier 0)	交易流水帳 (RLS 保護)
+macro_indicators	indicator_id, date, value	NVMe (Tier 0)	存儲 FRED/WorldBank 數據
+shareholder_dispersion	security_id, date, large_holders_pct	NVMe (Tier 0)	存儲集保中心大戶籌碼數據
+2.3 分析層 (Analysis Layer)
+2.3.1 量化多因子模型 (深化因子庫)
+由 N8N 調用 SQL Function 在資料庫內運算，包含六大因子：
+1.	價值 (Value): P/E, P/B, 股息殖利率, EV/EBITDA。
+2.	品質 (Quality): ROE, ROA, 負債權益比, 毛利率穩定性。
+3.	動能 (Momentum): RSI-14, 相對大盤報酬率, 股價距 52 週高點。
+4.	規模 (Size): 總市值 (Market Cap)。
+5.	波動率 (Volatility): 近 1 年歷史日報酬標準差。
+6.	成長 (Growth): 營收 CAGR, EPS CAGR。
+2.3.2 動態、宏觀感知的因子加權系統
+系統讀取宏觀指標 (FRED API)，判斷市場情境 (如：經濟衰退期)，自動提高「品質」和「波動率」因子的權重，計算最終 total_score。
+2.4 運營排程 (N8N Workflows)
+執行時間	作業名稱	觸發方式	動作 (N8N Nodes)	目標 Tier
+0 8 * * 1-5	更新證券主列表	Cron	HTTP Request (TWSE + TPEX) -> Postgres Upsert	NVMe
+0 9 * * 6	更新大戶籌碼	Cron	HTTP Request (TDCC) -> Postgres Upsert	NVMe
+0 17 * * 1-5	注入每日 OHLCV	Cron	HTTP Request (Tiingo/Fugle/Yahoo) -> Data Clean -> Postgres Upsert	NVMe
+Triggered	觸發 AI 分析	Webhook	Supabase Webhook (當 daily_prices 更新) -> Calculate Indicators -> Call Gemini API -> Save Report	NVMe
+0 21 * * 1-5	另類數據注入	Cron	Python Script (yfinance/pytrends) -> Postgres Upsert	NVMe
+0 3 * * *	系統備份	Cron	Execute Command (pg_dump) -> Move file to HDD Archive	HDD
+________________________________________
+3.0 應用程式前端 (React) 與功能詳解
+前端採用 React + Tailwind CSS，透過 Supabase Client 直接與資料庫互動。
+3.1 第一層：核心基礎 (Core Foundation)
+A. 儀表板 (Dashboard)
+•	功能: 投資組合總覽、市場關鍵指數 (VIX, TAIEX, BTC/USD)、最新 AI 戰略摘要、持股觀察清單。
+•	技術: 使用 Supabase Realtime 訂閱功能，股價與 AI 觀點無須刷新即時跳動。
+•	價值: 提供「投資指揮中心」，節省決策時間，情境感知。
+C. 投資組合明細 (Portfolio Details)
+•	功能: 多層級視圖 (總覽/單一資產)、績效歸因分析、風險指標 (Beta, Sharpe)、連結至「統合究極版決策模板」。
+•	技術: 前端從 NVMe 讀取數據，即時計算損益。
+•	價值: 深度洞察持倉結構，將風險具象化。
+N. 交易日誌 (Transaction Log)
+•	功能: 結構化紀錄買賣理由、入場情緒；支援自動匯入券商對帳單；自動計算每筆交易貢獻。
+•	技術: React 表單寫入 transaction_logs 表。
+•	價值: 決策覆盤，將經驗轉化為數據。
+W. 帳戶管理 (Account Management)
+•	功能: 個人資料、密碼修改、訂閱管理。
+•	技術: 整合 Supabase Auth (GoTrue)。
+•	價值: 兩步驟驗證 (2FA) 保障資產隱私。
+U. 系統設定 (System Settings)
+•	功能: 通知設定 (LINE/Email)、外觀主題 (Dark Mode)、技術指標參數調整。
+•	價值: 個人化體驗。
+Q. API 與數據源管理 (API Management)
+•	功能: 監控所有 API (Tiingo, Finnhub, Fugle) 連線狀態、錯誤率 (HTTP 429)、數據延遲 (Latency)。
+•	技術: 讀取 N8N 執行日誌表。
+•	價值: 確保系統數據基礎的透明與信任。
+3.2 第二層：洞察分析 (Insight & Analysis)
+T. AI 統一觀點 (AI "House View")
+•	功能: 每日生成市場覆盤報告、核心觀點提煉、歷史觀點準確度追蹤。
+•	技術: N8N 觸發 Gemini 生成，React 渲染 Markdown。
+•	價值: 模擬首席策略師，提供市場錨點。
+R. 技術分析中心 (Technical Analysis Center)
+•	功能: 整合 TradingView Lightweight Charts，繪製 K 線、疊加技術指標、多圖比較、訊號標註。
+•	技術: 歷史數據直接由本地 NVMe SSD 提供，載入速度極快。
+•	價值: 一站式分析，策略視覺化。
+H. 臺灣稅務分析與規劃模塊 (Taiwan Tax Module)
+•	功能: 股利所得稅計算、健保補充保費預警、稅損收割 (Tax-Loss Harvesting) 機會識別、棄權息建議。
+•	技術: N8N 定期更新稅法參數表。
+•	價值: 將稅務從負擔轉為策略，在地化優勢。
+AE. 大戶同步率分析儀 (Shareholder Analysis)
+•	功能: 整合 TDCC (集保) 數據，視覺化千張大戶/散戶持股趨勢，計算「同步率指標」。
+•	技術: N8N 每週更新 shareholder_dispersion 表。
+•	價值: 追蹤聰明錢流向，驗證持股信心。
+V. RSS 與新聞來源管理 (News Management)
+•	功能: 自訂 RSS 源、關鍵字過濾、AI 自動摘要長篇新聞。
+•	價值: 提升信噪比，資訊效率。
+AH. 因子投資儀表板 (Factor Dashboard)
+•	功能: 雷達圖呈現投資組合在六大因子 (價值/品質/動能/規模/波動/成長) 的曝險。
+•	技術: SQL Function 即時計算加權分數。
+•	價值: 識別真實投資風格，主動管理風險因子。
+AJ. 動態情報儀表板 (Dynamic Intelligence)
+•	功能: 僅顯示與持股相關的情報，附帶 AI 影響分析與「模擬應對」按鈕。
+•	價值: 從資訊過載到精準情報，縮短行動距離。
+Y. 報告中心 (Reporting Center)
+•	功能: 將決策模板、績效報告匯出為 PDF/CSV。
+•	技術: React PDF Renderer。
+•	價值: 數據可攜性，專業歸檔。
+3.3 第三層：決策輔助 (Decision Support)
+D. AI 投資組合策略 (AI Portfolio Strategy)
+•	功能: 基於風險屬性的動態資產配置建議 (股/債/現)、增減倉建議清單。
+•	價值: 提供客觀決策錨點，對抗情緒。
+O. 投資組合壓力測試 (Stress Test)
+•	功能: 模擬歷史極端情境 (2008金融海嘯)，計算最大回撤與虧損。
+•	技術: Postgres 在 NVMe 上進行高速大量運算。
+•	價值: 風險預演，強化韌性。
+P. 投資組合優化分析 (Optimization Analysis)
+•	功能: 蒙地卡羅模擬未來路徑，繪製效率前緣，提供優化建議。
+•	技術: N8N 呼叫 Python 運算節點。
+•	價值: 科學化配置，提升性價比。
+S. 策略回測實驗室 (Strategy Backtesting Lab)
+•	功能: 無程式碼策略建構器 (No-Code)、詳細回測報告 (Sharpe, Win Rate)、交易明細。
+•	技術: 利用本地 NVMe 數據進行極速回測。
+•	價值: 驗證想法，避免昂貴學費。
+Z. 對話式 AI 分析師 (Conversational AI)
+•	功能: 自然語言查詢個股分析、上下文理解、圖表生成。
+•	技術: React 透過 Supabase Edge Function 呼叫 Gemini API。
+•	價值: 降低門檻，即時解答，探索式分析。
+AA. 相似因子資產發現器 ("Look-Alike" Discovery)
+•	功能: 輸入種子股票 (如 NVIDIA)，系統基於因子 DNA 尋找相似標的。
+•	價值: 擴大能力圈，系統化選股。
+AD. AI 驅動的假設情境模擬器 (What-If Simulator)
+•	功能: 模擬交易 (如「賣出 A 買入 B」) 對組合的影響 (風險/報酬/稅務)。
+•	價值: 降低決策失誤，量化直覺。
+AI. 情境分析與對沖策略生成器 (Scenario & Hedging)
+•	功能: 設定未來宏觀情境 (如通膨復燃)，AI 模擬損益並自動生成對沖策略 (如買入反向 ETF)。
+•	價值: 前瞻性風險規劃，策略工具箱。
+AL. 智慧增強配置器 (Intelligent Augmentation)
+•	功能: AI 分析現有持股，從市場中推薦能最大化提升整體夏普比率的「增強型資產」。
+•	價值: 極致個人化建議，建構思維。
+AM. 投資組合催化劑排名 (Catalyst Ranker)
+•	功能: 動態排名 Top 10 最能優化現有組合的資產，附上推薦理由與戰術觸發點。
+•	價值: 連結戰略與戰術，賦予行動信心。
+3.4 第四層：紀律與成長 (Discipline & Growth)
+X. 投資目標 (Investment Goals)
+•	功能: 設定財務目標 (退休/購屋)，追蹤進度與所需報酬率。
+•	價值: 提升動機，目標導向決策。
+AB. 策略績效追蹤 (Performance Tracking)
+•	功能: 建立「影子投資組合」為基準，對比實際績效與 AI 策略績效的偏差 (Tracking Error)。
+•	價值: 驗證策略有效性，識別行為偏差。
+AC. AI 行為金融教練 (Behavioral Finance Coach)
+•	功能: 偵測非理性行為 (處置效應/損失規避)，提供情境式提醒與教育內容。
+•	價值: 情緒穩定器，提升決策品質。
+AG. 策略執行偏差熱力圖 (Deviation Heatmap)
+•	功能: 熱力圖視覺化展示實際持倉與目標策略在各因子的偏離程度。
+•	價值: 自我認知，紀律強化。
+AK. 目標導向的路徑校準儀 (Path Corrector)
+•	功能: 當偏離策略導致目標達成率下降時，發出警示並提供校準建議。
+•	價值: 將長期後果具象化，強力矯正行為。
+AF. 智慧事件警報系統 (Smart Alerts)
+•	功能: 監控價格、財報與量化指標，AI 過濾噪音後推播。
+•	價值: 機會捕捉，減少焦慮。
+AN. 戰術目標規劃器 (Tactical Objective Planner)
+•	功能: 設定單一商品的短期作戰計畫，生成「作戰報告室」，即時追蹤停損停利點。
+•	價值: 化目標為行動，強化交易紀律。
+________________________________________
+4.0 核心輸出模組
+4.1 統合究極版決策模板
+•	Part 1: 數據駕駛艙: 動態六因子雷達圖 (React Recharts)。
+•	Part 2: 核心投資論證: Bull vs. Bear (Markdown)。
+•	Part 3: 宏觀背景: 連結 FRED/WorldBank 數據。
+•	Part 4: 企業深度剖析:
+o	4.Z 動態六因子診斷: AI 解讀因子優劣。
+o	4.Y 籌碼分析: 整合 TDCC 集保戶 數據 (N8N 提供)。
+o	4.W 機構持倉: 13F 數據視覺化。
+o	4.X 散戶輿情: PTT/Dcard/Google Trends 情緒分析。
+•	Part 5: 前瞻性分析與戰術規劃。
+•	Part 6: 最終檢核。
+4.2 每日戰略投資分析報告
+•	系統每日自動生成，包含市場覆盤、宏觀解讀、情緒分析與 AI 觀點摘要。
+________________________________________
+5.0 基礎設施部署 (Docker Compose)
+YAML
+version: '3.8'
+services:
+  # 資料庫核心 (Tier 0: NVMe)
+  supabase-db:
+    image: supabase/postgres:15.1.0
+    volumes:
+      - /share/NVMe_Volume/GeminiQuant/db_data:/var/lib/postgresql/data
+    restart: always
+
+  # 自動化中樞 (Tier 1: SATA SSD)
+  n8n:
+    image: n8n/n8n:latest
+    volumes:
+      - /share/SATA_Volume/GeminiQuant/n8n_data:/home/node/.n8n
+      - /share/HDD_Archive/Backups:/mnt/backups
+    environment:
+      - DB_TYPE=postgresdb
+      - DB_POSTGRESDB_HOST=supabase-db
+
+  # 前端服務 (Tier 1: SATA SSD)
+  react-web:
+    image: nginx:alpine
+    volumes:
+      - /share/SATA_Volume/GeminiQuant/frontend_build:/usr/share/nginx/html
+    ports:
+      - "8080:80"
+________________________________________
+6.0 附錄
+6.1 關鍵名詞釋義 (Glossary)
+•	量化多因子模型: 同時評估價值、品質、動能等因子的分析方法。
+•	效率前緣 (Efficiency Frontier): 給定風險下提供最高預期報酬的投資組合曲線。
+•	處置效應 (Disposition Effect): 太快賣出賺錢資產，死抱虧損資產的心理偏誤。
+•	稅損收割 (Tax-Loss Harvesting): 賣出虧損資產以抵扣資本利得稅的策略。
+•	RLS (Row Level Security): PostgreSQL 的安全機制，確保用戶只能存取自己的數據。
+•	Realtime: Supabase 的功能，允許前端透過 WebSocket 監聽資料庫變更。
+6.2 API 供應商風險評估 (v9.3 台美雙擎版)
+API 供應商	用途	費用/限制	本地化策略 (N8N + Supabase)
+Tiingo	美股高品質 EOD	免費 (500檔/月)	(推薦) 準確度高，作為美股主要來源。
+Finnhub	美股即時	免費 (60 req/min)	N8N 批次處理，作為美股即時報價補充。
+Yahoo Finance	美台補漏	免費 (unofficial)	透過 yfinance 補足長歷史與特定指數。
+Fugle	台股即時	依等級	優先使用 WebSocket 接收，寫入 DB 快取。
+TWSE OpenAPI	台股官方	免費	證交所權威資料，盤後自動更新。
+TPEX OpenAPI	上櫃官方	免費	(新增) 櫃買中心資料，補足中小型股缺口。
+TDCC Open Data	籌碼分析	免費	(新增) 集保中心資料，每週更新股權分散表。
+CoinGecko	加密貨幣	免費 (Free Tier)	監控 BTC/ETH 作為市場流動性代理指標。
+World Bank	全球宏觀	免費 (Open Data)	用於長期宏觀模型與跨國比較。
+Google Trends	散戶情緒	免費 (unofficial)	透過 pytrends 監控 "Crash", "Recession" 等關鍵字熱度。
+Gemini	AI 分析	Token 費率	僅發送精煉後的 Prompt 與數據摘要。
+Marketaux	新聞	免費 (100 req/day)	收盤後批次抓取，存入 HDD 歸檔。
+

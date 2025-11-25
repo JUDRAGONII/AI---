@@ -1,0 +1,105 @@
+version: '3.8'
+
+# 專案名稱
+name: financial-database
+
+services:
+  # PostgreSQL 資料庫
+  postgres:
+    image: postgres:15-alpine
+    container_name: quant_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
+      POSTGRES_DB: ${DB_NAME:-quant_db}
+      TZ: Asia/Taipei
+    ports:
+      - "15432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./database/schema.sql:/docker-entrypoint-initdb.d/schema.sql
+    networks:
+      - quant_network
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U postgres" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # pgAdmin 資料庫管理介面
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: quant_pgadmin
+    restart: unless-stopped
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL:-admin@quant.local}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD:-admin}
+      PGADMIN_CONFIG_SERVER_MODE: 'False'
+    ports:
+      - "15050:80"
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+    networks:
+      - quant_network
+    depends_on:
+      - postgres
+
+  # React 前端應用
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: quant_frontend
+    restart: unless-stopped
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    environment:
+      - VITE_SUPABASE_URL=${SUPABASE_URL:-http://localhost:8000}
+      - VITE_SUPABASE_ANON_KEY=${SUPABASE_ANON_KEY}
+    networks:
+      - quant_network
+    command: npm run dev -- --host
+
+  # N8N 自動化工作流（選用）
+  n8n:
+    image: n8nio/n8n:latest
+    container_name: quant_n8n
+    restart: unless-stopped
+    ports:
+      - "5678:5678"
+    environment:
+      - N8N_BASIC_AUTH_ACTIVE=true
+      - N8N_BASIC_AUTH_USER=${N8N_USER:-admin}
+      - N8N_BASIC_AUTH_PASSWORD=${N8N_PASSWORD:-admin}
+      - DB_TYPE=postgresdb
+      - DB_POSTGRESDB_HOST=postgres
+      - DB_POSTGRESDB_PORT=5432
+      - DB_POSTGRESDB_DATABASE=${DB_NAME:-quant_db}
+      - DB_POSTGRESDB_USER=${DB_USER:-postgres}
+      - DB_POSTGRESDB_PASSWORD=${DB_PASSWORD:-postgres}
+      - TZ=Asia/Taipei
+    volumes:
+      - n8n_data:/home/node/.n8n
+    networks:
+      - quant_network
+    depends_on:
+      - postgres
+    profiles:
+      - full # 只在使用 --profile full 時啟動
+
+volumes:
+  postgres_data:
+    name: quant_postgres_data
+  pgadmin_data:
+    name: quant_pgadmin_data
+  n8n_data:
+    name: quant_n8n_data
+
+networks:
+  quant_network:
+    name: quant_network
+    driver: bridge

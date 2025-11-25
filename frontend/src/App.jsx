@@ -1,0 +1,93 @@
+// App.jsx - 主應用程式入口
+import { BrowserRouter, Routes, Route } from 'react-router-dom'
+import ErrorBoundary from './components/ErrorBoundary'
+import Layout from './components/Layout'
+import Dashboard from './pages/Dashboard'
+import ShareholderAnalysis from './pages/ShareholderAnalysis'
+import FactorDashboard from './pages/FactorDashboard'
+import AIInsights from './pages/AIInsights'
+import TechnicalAnalysis from './pages/TechnicalAnalysis'
+import PortfolioManagement from './pages/PortfolioManagement'
+import NewsManagement from './pages/NewsManagement'
+import Settings from './pages/Settings'
+import PortfolioOptimization from './pages/PortfolioOptimization'
+import StrategyBacktesting from './pages/StrategyBacktesting'
+import PortfolioStressTesting from './pages/PortfolioStressTesting'
+import InvestmentGoals from './pages/InvestmentGoals'
+import AIChatAnalyst from './pages/AIChatAnalyst'
+import SimilarAssetsFinder from './pages/SimilarAssetsFinder'
+import SmartAlertSystem from './pages/SmartAlertSystem'
+import PortfolioDetails from './pages/PortfolioDetails'
+import TransactionLog from './pages/TransactionLog'
+import AccountManagement from './pages/AccountManagement'
+import APIManagement from './pages/APIManagement'
+import ReportCenter from './pages/ReportCenter'
+import DynamicIntelligence from './pages/DynamicIntelligence'
+import AIPortfolioStrategy from './pages/AIPortfolioStrategy'
+import WhatIfSimulator from './pages/WhatIfSimulator'
+import BehavioralCoach from './pages/BehavioralCoach'
+import SmartEnhancer from './pages/SmartEnhancer'
+import CatalystRanker from './pages/CatalystRanker'
+import StrategyTracker from './pages/StrategyTracker'
+import DeviationHeatmap from './pages/DeviationHeatmap'
+import GoalCalibrator from './pages/GoalCalibrator'
+import TacticalPlanner from './pages/TacticalPlanner'
+import ScenarioHedging from './pages/ScenarioHedging'
+
+// 佔位符頁面（未來實作）
+const ComingSoon = ({ title }) => (
+  <div className="flex items-center justify-center h-full">
+    <div className="text-center">
+      <h2 className="text-2xl font-bold mb-2">{title}</h2>
+      <p className="text-gray-500 dark:text-gray-400">功能開發中，敬請期待...</p>
+    </div>
+  </div>
+)
+
+function App() {
+  return (
+    <ErrorBoundary>
+      <BrowserRouter>
+        <Routes>
+          <Route path="/" element={<Layout />}>
+            <Route index element={<Dashboard />} />
+            <Route path="ai-insights" element={<AIInsights />} />
+            <Route path="factors" element={<FactorDashboard />} />
+            <Route path="shareholder" element={<ShareholderAnalysis />} />
+            <Route path="technical" element={<TechnicalAnalysis />} />
+            <Route path="portfolio" element={<PortfolioManagement />} />
+            <Route path="news" element={<NewsManagement />} />
+            <Route path="settings" element={<Settings />} />
+
+            {/* 進階功能 */}
+            <Route path="optimization" element={<PortfolioOptimization />} />
+            <Route path="backtesting" element={<StrategyBacktesting />} />
+            <Route path="stress-testing" element={<PortfolioStressTesting />} />
+            <Route path="goals" element={<InvestmentGoals />} />
+            <Route path="ai-chat" element={<AIChatAnalyst />} />
+            <Route path="similar-assets" element={<SimilarAssetsFinder />} />
+            <Route path="alerts" element={<SmartAlertSystem />} />
+            <Route path="portfolio-details" element={<PortfolioDetails />} />
+            <Route path="transactions" element={<TransactionLog />} />
+            <Route path="account" element={<AccountManagement />} />
+            <Route path="api-management" element={<APIManagement />} />
+            <Route path="reports" element={<ReportCenter />} />
+            <Route path="intelligence" element={<DynamicIntelligence />} />
+            <Route path="ai-strategy" element={<AIPortfolioStrategy />} />
+            <Route path="what-if" element={<WhatIfSimulator />} />
+            <Route path="behavioral-coach" element={<BehavioralCoach />} />
+            <Route path="smart-enhancer" element={<SmartEnhancer />} />
+            <Route path="catalyst-ranker" element={<CatalystRanker />} />
+            <Route path="strategy-tracker" element={<StrategyTracker />} />
+            <Route path="deviation-heatmap" element={<DeviationHeatmap />} />
+            <Route path="goal-calibrator" element={<GoalCalibrator />} />
+            <Route path="tactical-planner" element={<TacticalPlanner />} />
+            <Route path="scenario-hedging" element={<ScenarioHedging />} />
+          </Route>
+        </Routes>
+      </BrowserRouter>
+    </ErrorBoundary>
+  )
+}
+
+export default App
