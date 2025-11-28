@@ -11,9 +11,8 @@ const StrategyBacktesting = () => {
     const [results, setResults] = useState(null);
     const [loading, setLoading] = useState(false);
 
-    const runBacktest = async () => {
+    const runBacktest = () => {
         setLoading(true);
-        // 模擬回測結果
         setTimeout(() => {
             setResults({
                 total_return: 15.3,
@@ -43,48 +42,41 @@ const StrategyBacktesting = () => {
                 <p className="text-gray-600 dark:text-gray-400 mt-1">驗證交易策略的歷史績效</p>
             </div>
 
-            {/* 策略設定 */}
             <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
                 <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4">策略參數</h2>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div>
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                            進場條件
-                        </label>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">進場條件</label>
                         <select
                             value={strategy.entry}
                             onChange={(e) => setStrategy({ ...strategy, entry: e.target.value })}
-                            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700"
                         >
-                            <option value="rsi_oversold">RSI超賣（<30）</option>
+                            <option value="rsi_oversold">RSI超賣（小於30）</option>
                             <option value="ma_cross">均線金叉</option>
                             <option value="breakout">突破新高</option>
                         </select>
                     </div>
 
                     <div>
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                            出場條件
-                        </label>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">出場條件</label>
                         <select
                             value={strategy.exit}
                             onChange={(e) => setStrategy({ ...strategy, exit: e.target.value })}
-                            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700"
                         >
                             <option value="take_profit_10">獲利10%出場</option>
                             <option value="stop_loss_5">停損5%出場</option>
-                            <option value="rsi_overbought">RSI超買（>70）</option>
+                            <option value="rsi_overbought">RSI超買（大於70）</option>
                         </select>
                     </div>
 
                     <div>
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                            回測期間
-                        </label>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">回測期間</label>
                         <select
                             value={strategy.period}
                             onChange={(e) => setStrategy({ ...strategy, period: e.target.value })}
-                            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700"
                         >
                             <option value="3m">3個月</option>
                             <option value="6m">6個月</option>
@@ -104,10 +96,8 @@ const StrategyBacktesting = () => {
                 </button>
             </div>
 
-            {/* 回測結果 */}
             {results && (
                 <>
-                    {/* 績效指標 */}
                     <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                         <MetricCard
                             label="總報酬率"
@@ -135,7 +125,6 @@ const StrategyBacktesting = () => {
                         />
                     </div>
 
-                    {/* 資金曲線 */}
                     <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
                         <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4">資金曲線</h2>
                         <ResponsiveContainer width="100%" height={300}>
@@ -143,21 +132,13 @@ const StrategyBacktesting = () => {
                                 <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
                                 <XAxis dataKey="month" stroke="#9CA3AF" />
                                 <YAxis stroke="#9CA3AF" />
-                                <Tooltip
-                                    contentStyle={{
-                                        backgroundColor: '#1F2937',
-                                        border: 'none',
-                                        borderRadius: '8px',
-                                        color: '#fff'
-                                    }}
-                                />
+                                <Tooltip contentStyle={{ backgroundColor: '#1F2937', border: 'none', borderRadius: '8px', color: '#fff' }} />
                                 <Legend />
                                 <Line type="monotone" dataKey="value" stroke="#3B82F6" strokeWidth={2} name="資金" />
                             </LineChart>
                         </ResponsiveContainer>
                     </div>
 
-                    {/* 月報酬分布 */}
                     <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
                         <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4">月報酬分布</h2>
                         <ResponsiveContainer width="100%" height={300}>
@@ -165,21 +146,13 @@ const StrategyBacktesting = () => {
                                 <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
                                 <XAxis dataKey="month" stroke="#9CA3AF" />
                                 <YAxis stroke="#9CA3AF" />
-                                <Tooltip
-                                    contentStyle={{
-                                        backgroundColor: '#1F2937',
-                                        border: 'none',
-                                        borderRadius: '8px',
-                                        color: '#fff'
-                                    }}
-                                />
+                                <Tooltip contentStyle={{ backgroundColor: '#1F2937', border: 'none', borderRadius: '8px', color: '#fff' }} />
                                 <Legend />
                                 <Bar dataKey="return" fill="#3B82F6" name="報酬率%" />
                             </BarChart>
                         </ResponsiveContainer>
                     </div>
 
-                    {/* 交易統計 */}
                     <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
                         <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4">交易統計</h2>
                         <div className="grid grid-cols-3 gap-4 text-center">
@@ -205,10 +178,10 @@ const StrategyBacktesting = () => {
 
 function MetricCard({ label, value, icon, color }) {
     const colorClasses = {
-        green: 'bg-green-50 dark:bg-green-900/30 text-green-600 dark:text-green-400',
-        red: 'bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400',
-        blue: 'bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400',
-        orange: 'bg-orange-50 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400'
+        green: 'bg-green-50 dark:bg-green-900/30 text-green-600',
+        red: 'bg-red-50 dark:bg-red-900/30 text-red-600',
+        blue: 'bg-blue-50 dark:bg-blue-900/30 text-blue-600',
+        orange: 'bg-orange-50 dark:bg-orange-900/30 text-orange-600'
     };
 
     return (
