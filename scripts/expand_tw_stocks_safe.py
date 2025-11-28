@@ -1,0 +1,83 @@
+"""
+擴展台股數據 - 從50支到100支
+基於市值和交易量選擇
+"""
+import requests
+from datetime import datetime
+import psycopg2
+from dotenv import load_dotenv
+import os
+
+load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), '..', 'config', '.env'))
+
+# 台股前100支代碼
+TW_STOCKS_100 = [
+    # 原有50支
+    '2330', '2317', '2454', '2308', '2881', '2882', '2891', '2892', '2886', '2884',
+    '2412', '2382', '1301', '1303', '1326', '2357', '2303', '3008', '2002', '6505',
+    '2887', '2880', '2885', '2890', '1216', '2379', '2377', '2327', '3711', '2345',
+    '6415', '6669', '5880', '2912', '2408', '3045', '2301', '2353', '1101', '2395',
+    '3231', '5871', '2883', '2603', '1102', '2912', '2609', '2324', '2344', '2371',
+    # 新增50支
+    '2409', '1605', '3481', '6176', '2888', '2356', '5483', '9910', '2049', '3037',
+    '6269', '2207', '2618', '2201', '2809', '2834', '2610', '3034', '1402', '1590',
+    '4904', '2915', '1314', '2474', '2841', '3532', '2383', '4938', '3711', '4958',
+    '5347', '2204', '6781', '3552', '2352', '1476', '5388', '6278', '6409', '2832',
+    '2385', '2027', '3443', '2458', '2347', '3653', '4966', '5269', '6446', '8046'
+]
+
+def expand_tw_stocks_safe():
+    print("=" * 60)
+    print("📈 擴展台股數據：50支 → 100支")
+    print("=" * 60)
+    
+    conn = psycopg2.connect(
+        host=os.getenv('DB_HOST', 'localhost'),
+        port=int(os.getenv('DB_PORT', '15432')),
+        database=os.getenv('DB_NAME', 'quant_db'),
+        user=os.getenv('DB_USER', 'postgres'),
+        password=os.getenv('DB_PASSWORD', 'postgres')
+    )
+    
+    cursor = conn.cursor()
+    
+    # 檢查現有數量
+    cursor.execute("SELECT COUNT(*) FROM tw_stock_info")
+    existing = cursor.fetchone()[0]
+    print(f"現有台股：{existing}支")
+    
+    stock_count = 0
+    
+    # 使用簡單方式插入（不依賴外部API）
+    for code in TW_STOCKS_100:
+        try:
+            cursor.execute("""
+                INSERT INTO tw_stock_info (stock_code, stock_name, market)
+                VALUES (%s, %s, %s)
+                ON CONFLICT (stock_code) DO NOTHING
+            """, (code, f"股票{code}", '上市'))
+            
+            if cursor.rowcount > 0:
+                stock_count += 1
+            
+        except Exception as e:
+            print(f"插入 {code} 失敗: {e}")
+            continue
+    
+    conn.commit()
+    
+    # 驗證
+    cursor.execute("SELECT COUNT(*) FROM tw_stock_info")
+    total = cursor.fetchone()[0]
+    
+    print(f"\n✅ 新增 {stock_count} 支台股")
+    print(f"📊 資料庫總計: {total} 支台股")
+    
+    cursor.close()
+    conn.close()
+    
+    return total
+
+if __name__ == '__main__':
+    result = expand_tw_stocks_safe()
+    print(f"\n🎉 完成！總共 {result} 支台股")

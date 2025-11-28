@@ -124,7 +124,7 @@ class TechnicalIndicators:
         
         return rsi
     
-   @staticmethod
+    @staticmethod
     def calculate_bollinger_bands(
         prices: pd.Series,
         period: int = 20,

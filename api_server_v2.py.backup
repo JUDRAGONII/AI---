@@ -1,0 +1,1090 @@
+"""
+AI投資分析儀 - API伺服器 v2.0
+整合DatabaseConnector的完整版API伺服器
+"""
+
+from flask import Flask, jsonify, request
+from flask_cors import CORS
+from data_loader import DatabaseConnector
+from datetime import datetime, timedelta
+import os
+from dotenv import load_dotenv
+from loguru import logger
+
+# 載入環境變數
+load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), 'config', '.env'))
+
+# 初始化Flask應用
+app = Flask(__name__)
+CORS(app)
+
+# 初始化DatabaseConnector
+db = DatabaseConnector()
+
+# ============ 健康檢查 ============
+@app.route('/api/health', methods=['GET'])
+def health_check():
+    """健康檢查端點"""
+    db_status = db.test_connection()
+    
+    return jsonify({
+        'status': 'healthy' if db_status else 'unhealthy',
+        'timestamp': datetime.now().isoformat(),
+        'version': '2.0.0',
+        'database': {
+            'connected': db_status,
+            'name': os.getenv('DB_NAME', 'quant_db')
+        },
+        'message': 'API伺服器v2運行中（整合DatabaseConnector）'
+    })
+
+# ============ API配置管理 ============
+@app.route('/api/config/sync-api-keys', methods=['POST'])
+def sync_api_keys():
+    """同步API金鑰到後端配置"""
+    try:
+        data = request.get_json()
+        
+        if not data:
+            return jsonify({'success': False, 'message': '無效的請求'}), 400
+        
+        # 更新.env檔案
+        env_path = os.path.join(os.path.dirname(__file__), 'config', '.env')
+        updated_keys = []
+        
+        # 讀取現有.env
+        env_vars = {}
+        if os.path.exists(env_path):
+            with open(env_path, 'r', encoding='utf-8') as f:
+                for line in f:
+                    line = line.strip()
+                    if line and '=' in line and not line.startswith('#'):
+                        key, value = line.split('=', 1)
+                        env_vars[key] = value
+        
+        # API金鑰映射
+        key_mapping = {
+            'gemini': 'GEMINI_API_KEY',
+            'alphaVantage': 'ALPHA_VANTAGE_API_KEY',
+            'tiingo': 'TIINGO_API_KEY',
+            'finnhub': 'FINNHUB_API_KEY',
+            'fred': 'FRED_API_KEY',
+            'fmp': 'FMP_API_KEY',
+            'goldApi': 'GOLD_API_KEY',
+            'exchangeRate': 'EXCHANGE_RATE_API_KEY',
+            'marketaux': 'MARKETAUX_API_KEY'
+        }
+        
+        # 更新API金鑰
+        for frontend_key, backend_key in key_mapping.items():
+            if frontend_key in data and data[frontend_key]:
+                env_vars[backend_key] = data[frontend_key]
+                updated_keys.append(frontend_key)
+        
+        # 寫回.env檔案
+        with open(env_path, 'w', encoding='utf-8') as f:
+            for key, value in env_vars.items():
+                f.write(f'{key}={value}\n')
+        
+        # 重新載入環境變數
+        load_dotenv(env_path, override=True)
+        
+        logger.info(f"✅ 成功同步 {len(updated_keys)} 個API金鑰")
+        
+        return jsonify({
+            'success': True,
+            'message': f'成功同步{len(updated_keys)}個API金鑰',
+            'synced_keys': updated_keys
+        })
+        
+    except Exception as e:
+        logger.error(f"❌ 同步失敗: {str(e)}")
+        return jsonify({
+            'success': False,
+            'message': f'同步失敗: {str(e)}'
+        }), 500
+
+
+@app.route('/api/config/api-keys', methods=['GET'])
+def get_api_keys_status():
+    """獲取API金鑰配置狀態"""
+    try:
+        keys_status = {}
+        
+        # API金鑰映射
+        key_mapping = {
+            'gemini': 'GEMINI_API_KEY',
+            'alphaVantage': 'ALPHA_VANTAGE_API_KEY',
+            'tiingo': 'TIINGO_API_KEY',
+            'finnhub': 'FINNHUB_API_KEY',
+            'fred': 'FRED_API_KEY',
+            'fmp': 'FMP_API_KEY',
+            'goldApi': 'GOLD_API_KEY',
+            'exchangeRate': 'EXCHANGE_RATE_API_KEY',
+            'marketaux': 'MARKETAUX_API_KEY'
+        }
+        
+        # 檢查每個key的配置狀態
+        for frontend_key, backend_key in key_mapping.items():
+            api_key = os.getenv(backend_key, '')
+            is_configured = (api_key and 
+                           'your_' not in api_key.lower() and 
+                           '_here' not in api_key.lower() and
+                           len(api_key) > 10)
+            
+            if is_configured:
+                keys_status[frontend_key] = {
+                    'configured': True,
+                    'masked_key': api_key[:6] + '***' if len(api_key) > 6 else '***'
+                }
+            else:
+                keys_status[frontend_key] = {
+                    'configured': False
+                }
+        
+        return jsonify(keys_status)
+        
+    except Exception as e:
+        logger.error(f"❌ 獲取API金鑰狀態失敗: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+# ============ 資料庫查詢 ============
+@app.route('/api/database/tables', methods=['GET'])
+def get_tables():
+    """列出所有資料表"""
+    try:
+        tables = db.execute_query("""
+            SELECT table_name 
+            FROM information_schema.tables 
+            WHERE table_schema = 'public'
+            ORDER BY table_name
+        """)
+        
+        return jsonify({
+            'count': len(tables),
+            'tables': [t['table_name'] for t in tables]
+        })
+    except Exception as e:
+        logger.error(f"❌ 獲取表格清單失敗: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/database/table/<table_name>', methods=['GET'])
+def get_table_data(table_name):
+    """查詢表格資料"""
+    try:
+        limit = request.args.get('limit', 100, type=int)
+        offset = request.args.get('offset', 0, type=int)
+        
+        # 檢查表格是否存在
+        tables = db.execute_query("""
+            SELECT table_name 
+            FROM information_schema.tables 
+            WHERE table_schema = 'public' AND table_name = %s
+        """, (table_name,))
+        
+        if not tables:
+            return jsonify({'error': f'表格 {table_name} 不存在'}), 404
+        
+        # 查詢資料
+        data = db.execute_query(f"""
+            SELECT * FROM {table_name}
+            ORDER BY 1 DESC
+            LIMIT %s OFFSET %s
+        """, (limit, offset))
+        
+        # 獲取總數
+        count_result = db.execute_query(f"SELECT COUNT(*) as total FROM {table_name}")
+        total = count_result[0]['total'] if count_result else 0
+        
+        return jsonify({
+            'table': table_name,
+            'total': total,
+            'limit': limit,
+            'offset': offset,
+            'count': len(data),
+            'data': data
+        })
+    except Exception as e:
+        logger.error(f"❌ 查詢表格資料失敗: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+# ============ 股票資訊 ============
+@app.route('/api/stocks/list', methods=['GET'])
+def get_stocks_list():
+    """獲取股票清單"""
+    try:
+        market = request.args.get('market', 'tw')
+        limit = request.args.get('limit', 100, type=int)
+        
+        table = 'tw_stock_info' if market == 'tw' else 'us_stock_info'
+        
+        stocks = db.execute_query(f"""
+            SELECT stock_code, stock_name, industry, market
+            FROM {table}
+            ORDER BY stock_code
+            LIMIT %s
+        """, (limit,))
+        
+        return jsonify({
+            'market': market,
+            'count': len(stocks),
+            'stocks': stocks
+        })
+    except Exception as e:
+        logger.error(f"❌ 獲取股票清單失敗: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/stocks/search', methods=['GET'])
+def search_stocks():
+    """搜尋股票"""
+    try:
+        query = request.args.get('q', '')
+        market = request.args.get('market', 'tw')
+        
+        if not query:
+            return jsonify({'error': '請提供搜尋關鍵字'}), 400
+        
+        table = 'tw_stock_info' if market == 'tw' else 'us_stock_info'
+        
+        results = db.execute_query(f"""
+            SELECT stock_code, stock_name, industry, market
+            FROM {table}
+            WHERE stock_code LIKE %s OR stock_name LIKE %s
+            LIMIT 20
+        """, (f'%{query}%', f'%{query}%'))
+        
+        return jsonify({
+            'query': query,
+            'market': market,
+            'count': len(results),
+            'results': results
+        })
+    except Exception as e:
+        logger.error(f"❌ 搜尋股票失敗: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/stocks/<stock_code>', methods=['GET'])
+def get_stock_info(stock_code):
+    """獲取個股詳細資訊"""
+    try:
+        market = request.args.get('market', 'tw')
+        table = 'tw_stock_info' if market == 'tw' else 'us_stock_info'
+        
+        info = db.execute_query(f"""
+            SELECT * FROM {table}
+            WHERE stock_code = %s
+        """, (stock_code,), fetch_one=True)
+        
+        if not info:
+            return jsonify({'error': f'找不到股票 {stock_code}'}), 404
+        
+        return jsonify(info)
+    except Exception as e:
+        logger.error(f"❌ 獲取股票資訊失敗: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+# ============ 價格資料 ============
+@app.route('/api/prices/<stock_code>', methods=['GET'])
+def get_stock_prices(stock_code):
+    """獲取股票價格資料"""
+    try:
+        market = request.args.get('market', 'tw')
+        days = request.args.get('days', 30, type=int)
+        start_date = request.args.get('start_date')
+        end_date = request.args.get('end_date')
+        
+        table = 'tw_stock_prices' if market == 'tw' else 'us_stock_prices'
+        
+        # 構建查詢
+        if start_date and end_date:
+            prices = db.execute_query(f"""
+                SELECT trade_date, open_price, high_price, low_price, 
+                       close_price, volume, adjusted_close
+                FROM {table}
+                WHERE stock_code = %s 
+                AND trade_date BETWEEN %s AND %s
+                ORDER BY trade_date DESC
+            """, (stock_code, start_date, end_date))
+        else:
+            prices = db.execute_query(f"""
+                SELECT trade_date, open_price, high_price, low_price, 
+                       close_price, volume, adjusted_close
+                FROM {table}
+                WHERE stock_code = %s
+                ORDER BY trade_date DESC
+                LIMIT %s
+            """, (stock_code, days))
+        
+        return jsonify({
+            'stock_code': stock_code,
+            'market': market,
+            'count': len(prices),
+            'data': prices
+        })
+    except Exception as e:
+        logger.error(f"❌ 獲取價格資料失敗: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/prices/<stock_code>/latest', methods=['GET'])
+def get_latest_price(stock_code):
+    """獲取最新價格"""
+    try:
+        market = request.args.get('market', 'tw')
+        table = 'tw_stock_prices' if market == 'tw' else 'us_stock_prices'
+        
+        latest = db.execute_query(f"""
+            SELECT * FROM {table}
+            WHERE stock_code = %s
+            ORDER BY trade_date DESC
+            LIMIT 1
+        """, (stock_code,), fetch_one=True)
+        
+        if not latest:
+            return jsonify({'error': f'找不到 {stock_code} 的價格資料'}), 404
+        
+        return jsonify(latest)
+    except Exception as e:
+        logger.error(f"❌ 獲取最新價格失敗: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+# ============ 因子分數 ============
+@app.route('/api/factors/<stock_code>', methods=['GET'])
+def get_factor_scores(stock_code):
+    """獲取股票因子分數"""
+    try:
+        market = request.args.get('market', 'tw')
+        
+        # 檢查表格是否存在
+        table_check = db.execute_query("""
+            SELECT table_name FROM information_schema.tables
+            WHERE table_schema = 'public' AND table_name = 'quant_scores'
+        """)
+        
+        if not table_check:
+            logger.warning("⚠️ quant_scores表格不存在")
+            return jsonify({
+                'error': '因子分數功能尚未啟用',
+                'message': '請先執行因子計算以生成數據'
+            }), 404
+        
+        # 查詢最新的因子分數
+        scores = db.execute_query("""
+            SELECT * FROM quant_scores
+            WHERE security_code = %s AND security_type = %s
+            ORDER BY calculation_date DESC
+            LIMIT 1
+        """, (stock_code, market.upper()), fetch_one=True)
+        
+        if not scores:
+            return jsonify({
+                'error': f'找不到 {stock_code} 的因子分數',
+                'stock_code': stock_code,
+                'market': market
+            }), 404
+        
+        return jsonify(scores)
+    except Exception as e:
+        logger.error(f"❌ 獲取因子分數失敗: {str(e)}")
+        return jsonify({'error': '查詢因子分數時發生錯誤', 'details': str(e)}), 500
+
+
+@app.route('/api/factors/<stock_code>/history', methods=['GET'])
+def get_factor_history(stock_code):
+    """獲取股票因子歷史"""
+    try:
+        market = request.args.get('market', 'tw')
+        days = request.args.get('days', 90, type=int)
+        
+        # 檢查表格是否存在
+        table_check = db.execute_query("""
+            SELECT table_name FROM information_schema.tables
+            WHERE table_schema = 'public' AND table_name = 'quant_scores'
+        """)
+        
+        if not table_check:
+            return jsonify({
+                'stock_code': stock_code,
+                'market': market,
+                'count': 0,
+                'data': [],
+                'message': '因子分數功能尚未啟用'
+            })
+        
+        # 查詢歷史因子分數
+        history = db.execute_query("""
+            SELECT * FROM quant_scores
+            WHERE security_code = %s AND security_type = %s
+            ORDER BY calculation_date DESC
+            LIMIT %s
+        """, (stock_code, market.upper(), days))
+        
+        return jsonify({
+            'stock_code': stock_code,
+            'market': market,
+            'count': len(history),
+            'data': history
+        })
+    except Exception as e:
+        logger.error(f"❌ 獲取因子歷史失敗: {str(e)}")
+        return jsonify({'error': '查詢因子歷史時發生錯誤', 'details': str(e)}), 500
+
+
+# ============ TDCC股權數據 ============
+@app.route('/api/tdcc/<stock_code>', methods=['GET'])
+def get_tdcc_data(stock_code):
+    """獲取TDCC股權分散表數據"""
+    try:
+        # 檢查表格是否存在
+        table_check = db.execute_query("""
+            SELECT table_name FROM information_schema.tables
+            WHERE table_schema = 'public' AND table_name = 'tdcc_shareholder_dispersion'
+        """)
+        
+        if not table_check:
+            return jsonify({
+                'stock_code': stock_code,
+                'count': 0,
+                'data': [],
+                'message': 'TDCC數據尚未同步'
+            })
+        
+        # 查詢最新的TDCC數據
+        tdcc_data = db.execute_query("""
+            SELECT * FROM tdcc_shareholder_dispersion
+            WHERE stock_code = %s
+            ORDER BY data_date DESC
+            LIMIT 10
+        """, (stock_code,))
+        
+        if not tdcc_data:
+            return jsonify({
+                'stock_code': stock_code,
+                'count': 0,
+                'data': [],
+                'message': f'找不到 {stock_code} 的TDCC數據'
+            })
+        
+        return jsonify({
+            'stock_code': stock_code,
+            'count': len(tdcc_data),
+            'data': tdcc_data
+        })
+    except Exception as e:
+        logger.error(f"❌ 獲取TDCC數據失敗: {str(e)}")
+        return jsonify({'error': '查詢TDCC數據時發生錯誤', 'details': str(e)}), 500
+
+
+# ============ 技術指標 ============
+@app.route('/api/indicators/<stock_code>', methods=['GET'])
+def get_technical_indicators(stock_code):
+    """獲取技術指標數據"""
+    try:
+        market = request.args.get('market', 'tw')
+        days = request.args.get('days', 30, type=int)
+        
+        table = 'tw_technical_indicators' if market == 'tw' else 'us_technical_indicators'
+        
+        # 檢查表格是否存在
+        table_check = db.execute_query("""
+            SELECT table_name FROM information_schema.tables
+            WHERE table_schema = 'public' AND table_name = %s
+        """, (table,))
+        
+        if not table_check:
+            return jsonify({
+                'stock_code': stock_code,
+                'market': market,
+                'count': 0,
+                'data': [],
+                'message': '技術指標數據尚未計算'
+            })
+        
+        # 查詢技術指標
+        indicators = db.execute_query(f"""
+            SELECT * FROM {table}
+            WHERE stock_code = %s
+            ORDER BY calculation_date DESC
+            LIMIT %s
+        """, (stock_code, days))
+        
+        return jsonify({
+            'stock_code': stock_code,
+            'market': market,
+            'count': len(indicators),
+            'data': indicators,
+            'message': '成功' if indicators else f'找不到 {stock_code} 的技術指標數據'
+        })
+    except Exception as e:
+        logger.error(f"❌ 獲取技術指標失敗: {str(e)}")
+        return jsonify({'error': '查詢技術指標時發生錯誤', 'details': str(e)}), 500
+
+
+# ============ AI報告 ============
+@app.route('/api/ai/reports', methods=['GET'])
+def get_ai_reports():
+    """獲取AI報告列表"""
+    try:
+        limit = request.args.get('limit', 10, type=int)
+        report_type = request.args.get('type', 'daily')
+        
+        # 檢查表格是否存在
+        table_check = db.execute_query("""
+            SELECT table_name FROM information_schema.tables
+            WHERE table_schema = 'public' AND table_name = 'ai_reports'
+        """)
+        
+        if not table_check:
+            return jsonify({
+                'type': report_type,
+                'count': 0,
+                'reports': [],
+                'message': 'AI報告功能尚未啟用'
+            })
+        
+        # 查詢AI報告
+        reports = db.execute_query("""
+            SELECT id, report_type, security_type, security_code, 
+                   title, content, created_at
+            FROM ai_reports
+            WHERE report_type = %s
+            ORDER BY created_at DESC
+            LIMIT %s
+        """, (report_type, limit))
+        
+        return jsonify({
+            'type': report_type,
+            'count': len(reports),
+            'reports': reports
+        })
+    except Exception as e:
+        logger.error(f"❌ 獲取AI報告失敗: {str(e)}")
+        return jsonify({'error': '查詢AI報告時發生錯誤', 'details': str(e)}), 500
+
+
+@app.route('/api/ai/report/<report_id>', methods=['GET'])
+def get_ai_report_detail(report_id):
+    """獲取AI報告詳情"""
+    try:
+        # 驗證report_id是否為數字
+        try:
+            report_id_int = int(report_id)
+        except ValueError:
+            return jsonify({
+                'error': '無效的報告ID',
+                'message': '報告ID必須是數字'
+            }), 404
+        
+        # 檢查表格是否存在
+        table_check = db.execute_query("""
+            SELECT table_name FROM information_schema.tables
+            WHERE table_schema = 'public' AND table_name = 'ai_reports'
+        """)
+        
+        if not table_check:
+            return jsonify({
+                'error': '找不到報告',
+                'message': 'AI報告功能尚未啟用'
+            }), 404
+        
+        # 查詢報告詳情
+        report = db.execute_query("""
+            SELECT * FROM ai_reports
+            WHERE id = %s
+        """, (report_id_int,), fetch_one=True)
+        
+        if not report:
+            return jsonify({'error': f'找不到報告ID {report_id}'}), 404
+        
+        return jsonify(report)
+    except Exception as e:
+        logger.error(f"❌ 獲取AI報告詳情失敗: {str(e)}")
+        return jsonify({'error': '查詢AI報告詳情時發生錯誤', 'details': str(e)}), 500
+
+
+# ============ 投資組合 ============
+@app.route('/api/portfolio/list', methods=['GET'])
+def get_portfolios():
+    """獲取投資組合列表"""
+    try:
+        user_id = request.args.get('user_id', 1, type=int)
+        
+        # 檢查表格是否存在
+        table_check = db.execute_query("""
+            SELECT table_name FROM information_schema.tables
+            WHERE table_schema = 'public' AND table_name = 'user_portfolios'
+        """)
+        
+        if not table_check:
+            return jsonify({
+                'user_id': user_id,
+                'count': 0,
+                'portfolios': [],
+                'message': '投資組合功能尚未啟用'
+            })
+        
+        # 查詢投資組合
+        portfolios = db.execute_query("""
+            SELECT portfolio_id, portfolio_name, total_value, 
+                   created_at, updated_at
+            FROM user_portfolios
+            WHERE user_id = %s
+            ORDER BY updated_at DESC
+        """, (user_id,))
+        
+        return jsonify({
+            'user_id': user_id,
+            'count': len(portfolios),
+            'portfolios': portfolios
+        })
+    except Exception as e:
+        logger.error(f"❌ 獲取投資組合列表失敗: {str(e)}")
+        return jsonify({'error': '查詢投資組合時發生錯誤', 'details': str(e)}), 500
+
+
+@app.route('/api/portfolio/<portfolio_id>/holdings', methods=['GET'])
+def get_portfolio_holdings(portfolio_id):
+    """獲取投資組合持倉"""
+    try:
+        # 檢查表格是否存在
+        table_check = db.execute_query("""
+            SELECT table_name FROM information_schema.tables
+            WHERE table_schema = 'public' AND table_name = 'portfolio_holdings'
+        """)
+        
+        if not table_check:
+            return jsonify({
+                'portfolio_id': portfolio_id,
+                'count': 0,
+                'holdings': [],
+                'message': '投資組合功能尚未啟用'
+            })
+        
+        # 查詢持倉
+        holdings = db.execute_query("""
+            SELECT h.*, s.stock_name, s.industry
+            FROM portfolio_holdings h
+            LEFT JOIN tw_stock_info s ON h.stock_code = s.stock_code
+            WHERE h.portfolio_id = %s AND h.shares > 0
+            ORDER BY h.market_value DESC
+        """, (portfolio_id,))
+        
+        return jsonify({
+            'portfolio_id': portfolio_id,
+            'count': len(holdings),
+            'holdings': holdings
+        })
+    except Exception as e:
+        logger.error(f"❌ 獲取持倉失敗: {str(e)}")
+        return jsonify({'error': '查詢持倉時發生錯誤', 'details': str(e)}), 500
+
+
+# ============ 錯誤處理 ============
+@app.errorhandler(404)
+def not_found(error):
+    return jsonify({'error': 'API端點不存在'}), 404
+
+
+@app.errorhandler(500)
+def internal_error(error):
+    return jsonify({'error': '伺服器內部錯誤'}), 500
+
+# ============ 主程式 ============
+if __name__ == '__main__':
+    port = int(os.getenv('API_PORT', 5000))
+    
+    logger.info("=" * 60)
+    logger.info("🚀 API伺服器 v2.0 啟動")
+    logger.info("=" * 60)
+    logger.info(f"📡 服務網址: http://localhost:{port}")
+    logger.info(f"💾 資料庫: {os.getenv('DB_NAME')}@{os.getenv('DB_HOST')}:{os.getenv('DB_PORT')}")
+    logger.info(f"✨ 整合: DatabaseConnector")
+    logger.info("=" * 60)
+    logger.info("📋 可用端點（共19個）:")
+    logger.info("   [健康檢查]")
+    logger.info("     GET  /api/health")
+    logger.info("   [API配置]")
+    logger.info("     GET  /api/config/api-keys")
+    logger.info("     POST /api/config/sync-api-keys")
+    logger.info("   [資料庫]")
+    logger.info("     GET  /api/database/tables")
+    logger.info("     GET  /api/database/table/<name>")
+    logger.info("   [股票資訊]")
+    logger.info("     GET  /api/stocks/list")
+    logger.info("     GET  /api/stocks/search")
+    logger.info("     GET  /api/stocks/<code>")
+    logger.info("   [價格資料]")
+    logger.info("     GET  /api/prices/<code>")
+    logger.info("     GET  /api/prices/<code>/latest")
+    logger.info("   [因子分數]")
+    logger.info("     GET  /api/factors/<code>")
+    logger.info("     GET  /api/factors/<code>/history")
+    logger.info("   [TDCC數據]")
+```python
+        limit = request.args.get('limit', 10, type=int)
+        report_type = request.args.get('type', 'daily')
+        
+        # 檢查表格是否存在
+        table_check = db.execute_query("""
+            SELECT table_name FROM information_schema.tables
+            WHERE table_schema = 'public' AND table_name = 'ai_reports'
+        """)
+        
+        if not table_check:
+            return jsonify({
+                'type': report_type,
+                'count': 0,
+                'reports': [],
+                'message': 'AI報告功能尚未啟用'
+            })
+        
+        # 查詢AI報告
+        reports = db.execute_query("""
+            SELECT id, report_type, security_type, security_code, 
+                   title, content, created_at
+            FROM ai_reports
+            WHERE report_type = %s
+            ORDER BY created_at DESC
+            LIMIT %s
+        """, (report_type, limit))
+        
+        return jsonify({
+            'type': report_type,
+            'count': len(reports),
+            'reports': reports
+        })
+    except Exception as e:
+        logger.error(f"❌ 獲取AI報告失敗: {str(e)}")
+        return jsonify({'error': '查詢AI報告時發生錯誤', 'details': str(e)}), 500
+
+
+@app.route('/api/ai/report/<report_id>', methods=['GET'])
+def get_ai_report_detail(report_id):
+    """獲取AI報告詳情"""
+    try:
+        # 驗證report_id是否為數字
+        try:
+            report_id_int = int(report_id)
+        except ValueError:
+            return jsonify({
+                'error': '無效的報告ID',
+                'message': '報告ID必須是數字'
+            }), 404
+        
+        # 檢查表格是否存在
+        table_check = db.execute_query("""
+            SELECT table_name FROM information_schema.tables
+            WHERE table_schema = 'public' AND table_name = 'ai_reports'
+        """)
+        
+        if not table_check:
+            return jsonify({
+                'error': '找不到報告',
+                'message': 'AI報告功能尚未啟用'
+            }), 404
+        
+        # 查詢報告詳情
+        report = db.execute_query("""
+            SELECT * FROM ai_reports
+            WHERE id = %s
+        """, (report_id_int,), fetch_one=True)
+        
+        if not report:
+            return jsonify({'error': f'找不到報告ID {report_id}'}), 404
+        
+        return jsonify(report)
+    except Exception as e:
+        logger.error(f"❌ 獲取AI報告詳情失敗: {str(e)}")
+        return jsonify({'error': '查詢AI報告詳情時發生錯誤', 'details': str(e)}), 500
+
+
+# ============ 投資組合 ============
+@app.route('/api/portfolio/list', methods=['GET'])
+def get_portfolios():
+    """獲取投資組合列表"""
+    try:
+        user_id = request.args.get('user_id', 1, type=int)
+        
+        # 檢查表格是否存在
+        table_check = db.execute_query("""
+            SELECT table_name FROM information_schema.tables
+            WHERE table_schema = 'public' AND table_name = 'user_portfolios'
+        """)
+        
+        if not table_check:
+            return jsonify({
+                'user_id': user_id,
+                'count': 0,
+                'portfolios': [],
+                'message': '投資組合功能尚未啟用'
+            })
+        
+        # 查詢投資組合
+        portfolios = db.execute_query("""
+            SELECT portfolio_id, portfolio_name, total_value, 
+                   created_at, updated_at
+            FROM user_portfolios
+            WHERE user_id = %s
+            ORDER BY updated_at DESC
+        """, (user_id,))
+        
+        return jsonify({
+            'user_id': user_id,
+            'count': len(portfolios),
+            'portfolios': portfolios
+        })
+    except Exception as e:
+        logger.error(f"❌ 獲取投資組合列表失敗: {str(e)}")
+        return jsonify({'error': '查詢投資組合時發生錯誤', 'details': str(e)}), 500
+
+
+@app.route('/api/portfolio/<portfolio_id>/holdings', methods=['GET'])
+def get_portfolio_holdings(portfolio_id):
+    """獲取投資組合持倉"""
+    try:
+        # 檢查表格是否存在
+        table_check = db.execute_query("""
+            SELECT table_name FROM information_schema.tables
+            WHERE table_schema = 'public' AND table_name = 'portfolio_holdings'
+        """)
+        
+        if not table_check:
+            return jsonify({
+                'portfolio_id': portfolio_id,
+                'count': 0,
+                'holdings': [],
+                'message': '投資組合功能尚未啟用'
+            })
+        
+        # 查詢持倉
+        holdings = db.execute_query("""
+            SELECT h.*, s.stock_name, s.industry
+            FROM portfolio_holdings h
+            LEFT JOIN tw_stock_info s ON h.stock_code = s.stock_code
+            WHERE h.portfolio_id = %s AND h.shares > 0
+            ORDER BY h.market_value DESC
+        """, (portfolio_id,))
+        
+        return jsonify({
+            'portfolio_id': portfolio_id,
+            'count': len(holdings),
+            'holdings': holdings
+        })
+    except Exception as e:
+        logger.error(f"❌ 獲取持倉失敗: {str(e)}")
+        return jsonify({'error': '查詢持倉時發生錯誤', 'details': str(e)}), 500
+
+
+# ============ 錯誤處理 ============
+@app.errorhandler(404)
+def not_found(error):
+    return jsonify({'error': 'API端點不存在'}), 404
+
+
+@app.errorhandler(500)
+def internal_error(error):
+    return jsonify({'error': '伺服器內部錯誤'}), 500
+
+
+# ============ 新增：商品價格（黃金等） ============
+@app.route('/api/commodity/<commodity_code>', methods=['GET'])
+def get_commodity_prices(commodity_code):
+    """獲取商品價格（黃金等）"""
+    try:
+        days = request.args.get('days', 30, type=int)
+        
+        prices = db.execute_query("""
+            SELECT trade_date, close_price, volume
+            FROM commodity_prices
+            WHERE commodity_code = %s
+            ORDER BY trade_date DESC
+            LIMIT %s
+        """, (commodity_code.upper(), days))
+        
+        return jsonify({
+            'commodity': commodity_code,
+            'count': len(prices),
+            'data': prices
+        })
+    except Exception as e:
+        logger.error(f"❌ 獲取商品價格失敗: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+
+# ============ 新增：匯率查詢 ============
+@app.route('/api/forex/<pair>', methods=['GET'])
+def get_forex_rates(pair):
+    """獲取匯率（USD/TWD等）"""
+    try:
+        days = request.args.get('days', 30, type=int)
+        
+        # 解析貨幣對 (格式: USDTWD)
+        if len(pair) != 6:
+            return jsonify({'error': '無效的貨幣對格式，應為XXXYYY'}), 400
+        
+        base = pair[:3].upper()
+        quote = pair[3:].upper()
+        
+        rates = db.execute_query("""
+            SELECT trade_date, rate
+            FROM exchange_rates
+            WHERE base_currency = %s AND quote_currency = %s
+            ORDER BY trade_date DESC
+            LIMIT %s
+        """, (base, quote, days))
+        
+        return jsonify({
+            'pair': f'{base}/{quote}',
+            'count': len(rates),
+            'data': rates
+        })
+    except Exception as e:
+        logger.error(f"❌ 獲取匯率失敗: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+
+# ============ 新增：TDCC大戶持股 ============
+@app.route('/api/tdcc/<stock_code>', methods=['GET'])
+def get_tdcc_data_endpoint(stock_code):
+    """獲取TDCC大戶持股數據"""
+    try:
+        limit = request.args.get('limit', 10, type=int)
+        
+        tdcc_data = db.execute_query("""
+            SELECT data_date, large_holder_ratio, total_shares,
+                   holder_count_400k_plus, shares_400k_plus
+            FROM tdcc_shareholder_dispersion
+            WHERE stock_code = %s
+            ORDER BY data_date DESC
+            LIMIT %s
+        """, (stock_code, limit))
+        
+        if not tdcc_data:
+            return jsonify({
+                'stock_code': stock_code,
+                'count': 0,
+                'data': [],
+                'message': '無TDCC數據'
+            })
+        
+        return jsonify({
+            'stock_code': stock_code,
+            'count': len(tdcc_data),
+            'data': tdcc_data
+        })
+    except Exception as e:
+        logger.error(f"❌ 獲取TDCC數據失敗: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+
+# ============ 新增：市場總覽 ============
+@app.route('/api/market/summary', methods=['GET'])
+def get_market_summary():
+    """獲取市場總覽（黃金、匯率、情緒指標）"""
+    try:
+        # 最新黃金價格
+        gold = db.execute_query("""
+            SELECT close_price, trade_date
+            FROM commodity_prices
+            WHERE commodity_code = 'GOLD'
+            ORDER BY trade_date DESC
+            LIMIT 1
+        """, fetch_one=True)
+        
+        # 最新美元台幣匯率
+        usdtwd = db.execute_query("""
+            SELECT rate, trade_date
+            FROM exchange_rates
+            WHERE base_currency = 'USD' AND quote_currency = 'TWD'
+            ORDER BY trade_date DESC
+            LIMIT 1
+        """, fetch_one=True)
+        
+        # 台股統計
+        tw_stocks = db.execute_query("""
+            SELECT COUNT(*) as count FROM tw_stock_info
+        """, fetch_one=True)
+        
+        # 美股統計
+        us_stocks = db.execute_query("""
+            SELECT COUNT(*) as count FROM us_stock_info
+        """, fetch_one=True)
+        
+        return jsonify({
+            'gold': {
+                'price': float(gold['close_price']) if gold else None,
+                'date': str(gold['trade_date']) if gold else None
+            },
+            'forex': {
+                'usd_twd': float(usdtwd['rate']) if usdtwd else None,
+                'date': str(usdtwd['trade_date']) if usdtwd else None
+            },
+            'stocks': {
+                'tw': tw_stocks['count'] if tw_stocks else 0,
+                'us': us_stocks['count'] if us_stocks else 0
+            }
+        })
+    except Exception as e:
+        logger.error(f"❌ 獲取市場總覽失敗: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+
+# ============ 主程式 ============
+if __name__ == '__main__':
+    port = int(os.getenv('API_PORT', 5000))
+    
+    logger.info("=" * 60)
+    logger.info("🚀 API伺服器 v2.0 啟動")
+    logger.info("=" * 60)
+    logger.info(f"📡 服務網址: http://localhost:{port}")
+    logger.info(f"💾 資料庫: {os.getenv('DB_NAME')}@{os.getenv('DB_HOST')}:{os.getenv('DB_PORT')}")
+    logger.info(f"✨ 整合: DatabaseConnector")
+    logger.info("=" * 60)
+    logger.info("📋 可用端點（共23個）:")
+    logger.info("   [健康檢查]")
+    logger.info("     GET  /api/health")
+    logger.info("   [API配置]")
+    logger.info("     GET  /api/config/api-keys")
+    logger.info("     POST /api/config/sync-api-keys")
+    logger.info("   [資料庫]")
+    logger.info("     GET  /api/database/tables")
+    logger.info("     GET  /api/database/table/<name>")
+    logger.info("   [股票資訊]")
+    logger.info("     GET  /api/stocks/list")
+    logger.info("     GET  /api/stocks/search")
+    logger.info("     GET  /api/stocks/<code>")
+    logger.info("   [價格資料]")
+    logger.info("     GET  /api/prices/<code>")
+    logger.info("     GET  /api/prices/<code>/latest")
+    logger.info("   [因子分數]")
+    logger.info("     GET  /api/factors/<code>")
+    logger.info("     GET  /api/factors/<code>/history")
+    logger.info("   [TDCC數據]")
+    logger.info("     GET  /api/tdcc/<code>")
+    logger.info("   [技術指標]")
+    logger.info("     GET  /api/indicators/<code>")
+    logger.info("   [AI報告]")
+    logger.info("     GET  /api/ai/reports")
+    logger.info("     GET  /api/ai/report/<id>")
+    logger.info("   [投資組合]")
+    logger.info("     GET  /api/portfolio/list")
+    logger.info("     GET  /api/portfolio/<id>/holdings")
+    logger.info("   [商品價格]")
+    logger.info("     GET  /api/commodity/<code>")
+    logger.info("   [匯率查詢]")
+    logger.info("     GET  /api/forex/<pair>")
+    logger.info("   [TDCC大戶持股]")
+    logger.info("     GET  /api/tdcc/<stock_code>")
+    logger.info("   [市場總覽]")
+    logger.info("     GET  /api/market/summary")
+    logger.info("=" * 60)
+    
+    try:
+        app.run(host='0.0.0.0', port=port, debug=True)
+    finally:
+        db.close()
+        logger.info("✅ 資料庫連接已關閉")
+```

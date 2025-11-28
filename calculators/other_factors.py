@@ -81,7 +81,7 @@ class SizeFactorCalculator(FactorCalculatorBase):
         else:  # 美股
             size_score = self.normalize_score(market_cap, 100, 10000, invert=False)
         
-        logger.info(f"{stock_code} 規模分數：{size_score:.2f} (市值:{market_cap機.2f}億)")
+        logger.info(f"{stock_code} 規模分數：{size_score:.2f} (市值:{market_cap:.2f}億)")
         
         return size_score
 

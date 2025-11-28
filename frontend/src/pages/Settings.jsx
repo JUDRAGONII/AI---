@@ -81,12 +81,27 @@ export default function Settings() {
 
     const saveApiKeys = async () => {
         localStorage.setItem('apiKeys', JSON.stringify(apiKeys))
-        setSyncStatus({ syncing: true, message: '正在儲存...', type: 'info' })
-        
-        setTimeout(() => {
-            setSyncStatus({ syncing: false, message: '✅ API金鑰已儲存', type: 'success' })
-            setTimeout(() => setSyncStatus({ syncing: false, message: '', type: '' }), 3000)
-        }, 500)
+        setSyncStatus({ syncing: true, message: '正在儲存並同步...', type: 'info' })
+
+        try {
+            const response = await fetch('http://localhost:5000/api/config/sync-api-keys', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(apiKeys)
+            })
+
+            const result = await response.json()
+
+            if (result.success) {
+                setSyncStatus({ syncing: false, message: `✅ ${result.message}`, type: 'success' })
+            } else {
+                setSyncStatus({ syncing: false, message: `⚠️ 已儲存，後端同步失敗`, type: 'warning' })
+            }
+        } catch (error) {
+            setSyncStatus({ syncing: false, message: '✅ 已儲存到前端', type: 'success' })
+        }
+
+        setTimeout(() => setSyncStatus({ syncing: false, message: '', type: '' }), 3000)
     }
 
     const clearApiKeys = () => {
@@ -143,7 +158,7 @@ export default function Settings() {
                         <div className="text-sm">
                             <p className="font-medium text-blue-900 dark:text-blue-100 mb-1">重要提醒</p>
                             <p className="text-blue-800 dark:text-blue-200">
-                                ✨ 台灣證交所（TWSE）OpenAPI 完全免費，無需申請API Token！<br/>
+                                ✨ 台灣證交所（TWSE）OpenAPI 完全免費，無需申請API Token！<br />
                                 API金鑰儲存在瀏覽器中，共用API會在儲存時自動同步到後端配置。
                             </p>
                         </div>
@@ -151,11 +166,10 @@ export default function Settings() {
                 </div>
 
                 {syncStatus.message && (
-                    <div className={`mb-4 p-4 rounded-lg ${
-                        syncStatus.type === 'success' ? 'bg-green-50 dark:bg-green-900/20 text-green-800 dark:text-green-200' :
-                        syncStatus.type === 'warning' ? 'bg-yellow-50 dark:bg-yellow-900/20 text-yellow-800 dark:text-yellow-200' :
-                        'bg-blue-50 dark:bg-blue-900/20 text-blue-800 dark:text-blue-200'
-                    }`}>
+                    <div className={`mb-4 p-4 rounded-lg ${syncStatus.type === 'success' ? 'bg-green-50 dark:bg-green-900/20 text-green-800 dark:text-green-200' :
+                            syncStatus.type === 'warning' ? 'bg-yellow-50 dark:bg-yellow-900/20 text-yellow-800 dark:text-yellow-200' :
+                                'bg-blue-50 dark:bg-blue-900/20 text-blue-800 dark:text-blue-200'
+                        }`}>
                         {syncStatus.message}
                     </div>
                 )}
@@ -167,7 +181,7 @@ export default function Settings() {
                             <span className="bg-purple-100 dark:bg-purple-900 text-purple-800 dark:text-purple-200 px-2 py-1 rounded text-sm">前後端共用</span>
                             自動同步API
                         </h3>
-                        
+
                         <div>
                             <div className="flex items-center justify-between mb-2">
                                 <label className="block text-sm font-medium">
@@ -197,7 +211,7 @@ export default function Settings() {
                             <span className="bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200 px-2 py-1 rounded text-sm">前端專用</span>
                             前端應用API
                         </h3>
-                        
+
                         <div className="space-y-4">
                             <div>
                                 <label className="block text-sm font-medium mb-2">
@@ -252,7 +266,7 @@ export default function Settings() {
                         <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
                             這些API用於獲取股票報價、新聞、財報等資料
                         </p>
-                        
+
                         <div className="space-y-4">
                             <div>
                                 <div className="flex items-center justify-between mb-2">
@@ -365,7 +379,7 @@ export default function Settings() {
                         <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
                             這些API用於獲取總體經濟、匯率、黃金等市場資料
                         </p>
-                        
+
                         <div className="space-y-4">
                             <div>
                                 <div className="flex items-center justify-between mb-2">

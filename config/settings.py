@@ -17,10 +17,10 @@ BASE_DIR = Path(__file__).parent.parent
 # ==========================================
 DATABASE_CONFIG = {
     'host': 'localhost',
-    'port': 15432,  # 強制使用 15432
-    'database': 'financial_data',
+    'port': 15432,
+    'database': 'quant_db',  # 修正：使用quant_db
     'user': 'postgres',
-    'password': '0824-003-a-8-Po', # 強制使用新密碼
+    'password': 'postgres',  # 修正：使用postgres
 }
 
 # 資料庫連線字串

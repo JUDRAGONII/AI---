@@ -1,143 +1,165 @@
-// Dashboard 頁面 - AI 投資分析儀主儀表板
-import { useState } from 'react'
-import { TrendingUp, TrendingDown, DollarSign, Activity } from 'lucide-react'
+// Dashboard 完整API整合
+import React, { useState, useEffect } from 'react';
+import { api, fetchAPI } from '../services/api';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
-export default function Dashboard() {
-    const [marketData] = useState({
-        taiex: { value: 17850, change: +125.5, changePercent: +0.71 },
-        dow: { value: 38521, change: +189.3, changePercent: +0.49 },
-        sp500: { value: 4912, change: +24.8, changePercent: +0.51 },
-        nasdaq: { value: 15632, change: -45.2, changePercent: -0.29 },
-        gold: { value: 2045.80, change: +15.30, changePercent: +0.75 },
-        usdtwd: { value: 31.25, change: -0.15, changePercent: -0.48 },
-        btc: { value: 95000, change: +2300, changePercent: +2.48 },
-        vix: { value: 15.2, change: -0.5, changePercent: -3.18 }
-    })
+const Dashboard = () => {
+    const [stats, setStats] = useState({
+        totalStocks: 0,
+        totalPrices: 0,
+        apiHealth: 'checking...',
+    });
+    const [topStocks, setTopStocks] = useState([]);
+    const [recentPrices, setRecentPrices] = useState([]);
+    const [loading, setLoading] = useState(true);
+
+    useEffect(() => {
+        loadDashboard();
+    }, []);
+
+    const loadDashboard = async () => {
+        try {
+            setLoading(true);
+
+            // 健康檢查
+            const health = await fetchAPI(api.health());
+            setStats(prev => ({ ...prev, apiHealth: health.status }));
+
+            // 載入台股列表
+            const stocksData = await fetchAPI(api.stocks.list('tw', 10));
+            setTopStocks(stocksData.stocks || []);
+            setStats(prev => ({ ...prev, totalStocks: stocksData.count }));
+
+            // 載入台積電價格作為示範
+            if (stocksData.stocks.length > 0) {
+                const priceData = await fetchAPI(api.prices.history('2330', 'tw', 7));
+                const chartData = priceData.data.slice(0, 7).map(p => ({
+                    date: new Date(p.trade_date).toLocaleDateString('zh-TW', { month: '2-digit', day: '2-digit' }),
+                    price: parseFloat(p.close_price),
+                }));
+                setRecentPrices(chartData);
+                setStats(prev => ({ ...prev, totalPrices: priceData.count }));
+            }
+
+        } catch (err) {
+            console.error('Dashboard load error:', err);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    if (loading) {
+        return (
+            <div className="flex items-center justify-center h-screen">
+                <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-blue-600"></div>
+            </div>
+        );
+    }
 
     return (
-        <div className="p-8 space-y-8">
-            {/* Header */}
-            <div>
-                <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
-                    AI 投資分析儀
-                </h1>
-                <p className="text-gray-600 dark:text-gray-400 mt-2">
-                    Gemini Quant - 您的智慧投資決策夥伴
-                </p>
-            </div>
+        <div className="p-6 max-w-7xl mx-auto">
+            <h1 className="text-4xl font-bold mb-8 text-gray-900 dark:text-white">
+                儀表板
+            </h1>
 
-            {/* 市場關鍵指數 */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                <MarketCard
-                    title="台股加權"
-                    value={marketData.taiex.value}
-                    change={marketData.taiex.change}
-                    changePercent={marketData.taiex.changePercent}
-                    icon={<TrendingUp className="w-6 h-6" />}
-                />
-                <MarketCard
-                    title="道瓊工業"
-                    value={marketData.dow.value}
-                    change={marketData.dow.change}
-                    changePercent={marketData.dow.changePercent}
-                    icon={<Activity className="w-6 h-6" />}
-                />
-                <MarketCard
-                    title="S&P 500"
-                    value={marketData.sp500.value}
-                    change={marketData.sp500.change}
-                    changePercent={marketData.sp500.changePercent}
-                    icon={<Activity className="w-6 h-6" />}
-                />
-                <MarketCard
-                    title="NASDAQ"
-                    value={marketData.nasdaq.value}
-                    change={marketData.nasdaq.change}
-                    changePercent={marketData.nasdaq.changePercent}
-                    icon={<Activity className="w-6 h-6" />}
-                />
-                <MarketCard
-                    title="黃金 (USD/oz)"
-                    value={marketData.gold.value}
-                    change={marketData.gold.change}
-                    changePercent={marketData.gold.changePercent}
-                    icon={<DollarSign className="w-6 h-6" />}
-                    decimals={2}
-                />
-                <MarketCard
-                    title="USD/TWD 匯率"
-                    value={marketData.usdtwd.value}
-                    change={marketData.usdtwd.change}
-                    changePercent={marketData.usdtwd.changePercent}
-                    icon={<DollarSign className="w-6 h-6" />}
-                    decimals={2}
-                />
-                <MarketCard
-                    title="BTC/USD"
-                    value={marketData.btc.value}
-                    change={marketData.btc.change}
-                    changePercent={marketData.btc.changePercent}
-                    icon={<DollarSign className="w-6 h-6" />}
-                />
-                <MarketCard
-                    title="VIX 恐慌指數"
-                    value={marketData.vix.value}
-                    change={marketData.vix.change}
-                    changePercent={marketData.vix.changePercent}
-                    icon={<Activity className="w-6 h-6" />}
-                    decimals={1}
-                />
-            </div>
+            {/* 統計卡片 */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                <div className="bg-white dark:bg-gray-800 rounded-lg p-6 shadow-lg">
+                    <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-2">
+                        API狀態
+                    </h3>
+                    <p className={`text-3xl font-bold ${stats.apiHealth === 'healthy' ? 'text-green-600' : 'text-red-600'
+                        }`}>
+                        {stats.apiHealth === 'healthy' ? '正常' : '檢查中'}
+                    </p>
+                </div>
 
-            {/* AI 每日戰略觀點 */}
-            <div className="card">
-                <h2 className="text-2xl font-bold mb-4">AI 每日戰略觀點</h2>
-                <div className="text-gray-500 dark:text-gray-400">
-                    <p className="text-sm mb-4">展示模式運行中</p>
-                    <p>連接後端API後，將顯示Gemini AI生成的每日投資策略分析與建議。</p>
+                <div className="bg-white dark:bg-gray-800 rounded-lg p-6 shadow-lg">
+                    <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-2">
+                        股票總數
+                    </h3>
+                    <p className="text-3xl font-bold text-blue-600">
+                        {stats.totalStocks}
+                    </p>
+                </div>
+
+                <div className="bg-white dark:bg-gray-800 rounded-lg p-6 shadow-lg">
+                    <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-2">
+                        價格記錄
+                    </h3>
+                    <p className="text-3xl font-bold text-purple-600">
+                        {stats.totalPrices}
+                    </p>
                 </div>
             </div>
 
-            {/* 快速操作 */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <ActionCard title="查看因子分析" description="深入了解六大因子表現" />
-                <ActionCard title="大戶同步率" description="追蹤聰明錢流向（TDCC）" />
-                <ActionCard title="技術分析" description="查看 K 線圖與技術指標" />
-            </div>
-        </div>
-    )
-}
-
-// 市場數據卡片
-function MarketCard({ title, value, change, changePercent, icon, decimals = 0 }) {
-    const isPositive = change >= 0
-
-    return (
-        <div className="card">
-            <div className="flex items-center justify-between mb-4">
-                <h3 className="text-sm font-medium text-gray-600 dark:text-gray-400">{title}</h3>
-                {icon}
-            </div>
-            <div className="space-y-2">
-                <div className="text-2xl font-bold">
-                    {decimals > 0 ? value.toFixed(decimals) : value.toLocaleString()}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                {/* 熱門股票 */}
+                <div className="bg-white dark:bg-gray-800 rounded-lg p-6 shadow-lg">
+                    <h2 className="text-2xl font-bold mb-4 text-gray-900 dark:text-white">
+                        熱門台股
+                    </h2>
+                    <div className="space-y-3">
+                        {topStocks.map((stock, idx) => (
+                            <div
+                                key={stock.stock_code}
+                                className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors"
+                            >
+                                <div className="flex items-center gap-3">
+                                    <span className="text-lg font-bold text-gray-400">
+                                        {idx + 1}
+                                    </span>
+                                    <div>
+                                        <p className="font-bold text-gray-900 dark:text-white">
+                                            {stock.stock_code}
+                                        </p>
+                                        <p className="text-sm text-gray-600 dark:text-gray-400">
+                                            {stock.stock_name}
+                                        </p>
+                                    </div>
+                                </div>
+                                <span className="text-xs bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 px-2 py-1 rounded">
+                                    {stock.industry}
+                                </span>
+                            </div>
+                        ))}
+                    </div>
                 </div>
-                <div className={`flex items-center text-sm ${isPositive ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
-                    {isPositive ? <TrendingUp className="w-4 h-4 mr-1" /> : <TrendingDown className="w-4 h-4 mr-1" />}
-                    <span>{isPositive ? '+' : ''}{change.toFixed(2)}</span>
-                    <span className="ml-2">({isPositive ? '+' : ''}{changePercent.toFixed(2)}%)</span>
+
+                {/* 價格走勢（台積電） */}
+                <div className="bg-white dark:bg-gray-800 rounded-lg p-6 shadow-lg">
+                    <h2 className="text-2xl font-bold mb-4 text-gray-900 dark:text-white">
+                        台積電近7日走勢
+                    </h2>
+                    {recentPrices.length > 0 ? (
+                        <ResponsiveContainer width="100%" height={250}>
+                            <LineChart data={recentPrices}>
+                                <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+                                <XAxis dataKey="date" stroke="#9CA3AF" />
+                                <YAxis stroke="#9CA3AF" />
+                                <Tooltip
+                                    contentStyle={{
+                                        backgroundColor: '#1F2937',
+                                        border: 'none',
+                                        borderRadius: '8px'
+                                    }}
+                                />
+                                <Line
+                                    type="monotone"
+                                    dataKey="price"
+                                    stroke="#3B82F6"
+                                    strokeWidth={3}
+                                    dot={{ fill: '#3B82F6', r: 4 }}
+                                />
+                            </LineChart>
+                        </ResponsiveContainer>
+                    ) : (
+                        <p className="text-gray-500 text-center py-8">暫無數據</p>
+                    )}
                 </div>
             </div>
         </div>
-    )
-}
+    );
+};
 
-// 快速操作卡片
-function ActionCard({ title, description }) {
-    return (
-        <div className="card hover:shadow-lg transition-shadow duration-200 cursor-pointer">
-            <h3 className="text-lg font-bold mb-2">{title}</h3>
-            <p className="text-gray-600 dark:text-gray-400 text-sm">{description}</p>
-        </div>
-    )
-}
+export default Dashboard;
