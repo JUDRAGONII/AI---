@@ -33,6 +33,11 @@ import DeviationHeatmap from './pages/DeviationHeatmap'
 import GoalCalibrator from './pages/GoalCalibrator'
 import TacticalPlanner from './pages/TacticalPlanner'
 import ScenarioHedging from './pages/ScenarioHedging'
+import AIHouseView from './pages/AIHouseView'
+import StockListTW from './pages/StockListTW'
+import StockListUS from './pages/StockListUS'
+import StockDetailDemo from './pages/StockDetailDemo'
+import MarketOverview from './pages/MarketOverview'
 
 // 佔位符頁面（未來實作）
 const ComingSoon = ({ title }) => (
@@ -83,6 +88,11 @@ function App() {
             <Route path="goal-calibrator" element={<GoalCalibrator />} />
             <Route path="tactical-planner" element={<TacticalPlanner />} />
             <Route path="scenario-hedging" element={<ScenarioHedging />} />
+            <Route path="ai-house-view" element={<AIHouseView />} />
+            <Route path="stock-list-tw" element={<StockListTW />} />
+            <Route path="stock-list-us" element={<StockListUS />} />
+            <Route path="stock/:code" element={<StockDetailDemo />} />
+            <Route path="market-overview" element={<MarketOverview />} />
           </Route>
         </Routes>
       </BrowserRouter>

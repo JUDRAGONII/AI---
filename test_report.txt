@@ -1,0 +1,20 @@
+系統測試報告
+測試時間: 2025-11-30 12:54:17
+
+測試結果: 14/15 通過
+
+[PASS] 資料庫連接: 台股138支, 美股100支
+[PASS] 健康檢查: OK
+[PASS] 股票列表-台股: OK
+[PASS] 股票列表-美股: OK
+[PASS] 股票詳情: OK
+[PASS] 價格歷史: OK
+[PASS] MA指標: OK
+[PASS] RSI指標: OK
+[PASS] MACD指標: OK
+[PASS] 布林通道: OK
+[PASS] 黃金價格: OK
+[PASS] 匯率數據: OK
+[PASS] 市場總覽: OK
+[PASS] 資料表列表: OK
+[FAIL] AI連接測試: Expected 200, got 500

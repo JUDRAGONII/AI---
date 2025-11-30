@@ -192,23 +192,57 @@ const Dashboard = () => {
                 </div>
             </div>
 
-            {/* 市場數據統計 */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* 市場數據統計 - 含黃金與匯率 */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                {/* 台股數據統計 */}
                 <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
                     <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-4">台股數據統計</h3>
                     <div className="space-y-3">
-                        <StatItem label="追蹤股票數" value={marketData?.tw_stock_count || 138} />
-                        <StatItem label="價格數據筆數" value={marketData?.tw_price_count || 30544} />
-                        <StatItem label="最新更新" value="2025-11-28" />
+                        <StatItem label="追蹤股票數" value={marketData?.stocks?.tw || 138} />
+                        <StatItem label="價格數據筆數" value={marketData?.stocks?.tw_prices || 30544} />
+                        <StatItem label="最新更新" value="2025-11-30" />
                     </div>
                 </div>
 
+                {/* 美股數據統計 */}
                 <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
                     <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-4">美股數據統計</h3>
                     <div className="space-y-3">
-                        <StatItem label="追蹤股票數" value={marketData?.us_stock_count || 100} />
-                        <StatItem label="價格數據筆數" value={marketData?.us_price_count || 25001} />
-                        <StatItem label="最新更新" value="2025-11-28" />
+                        <StatItem label="追蹤股票數" value={marketData?.stocks?.us || 100} />
+                        <StatItem label="價格數據筆數" value={marketData?.stocks?.us_prices || 25001} />
+                        <StatItem label="最新更新" value="2025-11-30" />
+                    </div>
+                </div>
+
+                {/* 黃金數據統計 */}
+                <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 border-l-4 border-yellow-500">
+                    <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
+                        <DollarSign className="w-5 h-5 text-yellow-500" />
+                        黃金數據統計
+                    </h3>
+                    <div className="space-y-3">
+                        <StatItem
+                            label="當前價格"
+                            value={marketData?.gold?.price ? `$${marketData.gold.price.toFixed(2)}` : 'N/A'}
+                        />
+                        <StatItem label="數據筆數" value={marketData?.gold?.count || 251} />
+                        <StatItem label="數據來源" value="yfinance" />
+                    </div>
+                </div>
+
+                {/* 匯率數據統計 */}
+                <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 border-l-4 border-blue-500">
+                    <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
+                        <Activity className="w-5 h-5 text-blue-500" />
+                        匯率數據統計
+                    </h3>
+                    <div className="space-y-3">
+                        <StatItem
+                            label="USD/TWD"
+                            value={marketData?.forex?.usd_twd ? marketData.forex.usd_twd.toFixed(2) : 'N/A'}
+                        />
+                        <StatItem label="追蹤貨幣對" value={marketData?.forex?.pairs || '5對'} />
+                        <StatItem label="數據筆數" value={marketData?.forex?.count || 665} />
                     </div>
                 </div>
             </div>

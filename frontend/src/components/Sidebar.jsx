@@ -55,11 +55,54 @@ const menuItems = [
     { icon: Settings, label: '系統設定', path: '/settings', category: '系統' },
 ]
 
+import { useState, useEffect } from 'react'
+import { api } from '../services/api'
+
 export default function Sidebar({ isOpen, onToggle }) {
     const location = useLocation()
+    const [dbStatus, setDbStatus] = useState({
+        tw: 0,
+        us: 0,
+        gold: 0,
+        forex: 0,
+        loading: true
+    })
 
     // 分組顯示選單
     const categories = ['核心', '投資組合', '策略', 'AI進階', '智慧工具', '規劃', '系統']
+
+    useEffect(() => {
+        const fetchDbStatus = async () => {
+            try {
+                const response = await fetch(api.market.summary())
+                const data = await response.json()
+                setDbStatus({
+                    tw: data.stocks?.tw_prices || 0,
+                    us: data.stocks?.us_prices || 0,
+                    gold: data.gold?.count || 0,
+                    forex: data.forex?.count || 0,
+                    loading: false
+                })
+            } catch (error) {
+                console.error('獲取資料庫狀態失敗:', error)
+                setDbStatus(prev => ({ ...prev, loading: false }))
+            }
+        }
+
+        if (isOpen) {
+            fetchDbStatus()
+            // 每30秒更新一次
+            const interval = setInterval(fetchDbStatus, 30000)
+            return () => clearInterval(interval)
+        }
+    }, [isOpen])
+
+    const formatCount = (count) => {
+        if (count >= 1000) {
+            return `${(count / 1000).toFixed(1)}K`
+        }
+        return count
+    }
 
     return (
         <aside className={`
@@ -157,25 +200,35 @@ export default function Sidebar({ isOpen, onToggle }) {
                         <div className="space-y-1 text-xs text-gray-600 dark:text-gray-400">
                             <div className="flex justify-between">
                                 <span>台股</span>
-                                <span className="font-medium text-green-600 dark:text-green-400">15.6K</span>
+                                <span className="font-medium text-green-600 dark:text-green-400">
+                                    {formatCount(dbStatus.tw)}
+                                </span>
                             </div>
                             <div className="flex justify-between">
                                 <span>美股</span>
-                                <span className="font-medium text-green-600 dark:text-green-400">9.1K</span>
+                                <span className="font-medium text-green-600 dark:text-green-400">
+                                    {formatCount(dbStatus.us)}
+                                </span>
                             </div>
                             <div className="flex justify-between">
                                 <span>黃金</span>
-                                <span className="font-medium text-green-600 dark:text-green-400">2.8K</span>
+                                <span className="font-medium text-green-600 dark:text-green-400">
+                                    {formatCount(dbStatus.gold)}
+                                </span>
                             </div>
                             <div className="flex justify-between">
                                 <span>匯率</span>
-                                <span className="font-medium text-green-600 dark:text-green-400">1.2K</span>
+                                <span className="font-medium text-green-600 dark:text-green-400">
+                                    {formatCount(dbStatus.forex)}
+                                </span>
                             </div>
                         </div>
                         <div className="mt-2 pt-2 border-t border-gray-200 dark:border-gray-700">
                             <div className="flex items-center gap-1">
                                 <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-                                <span className="text-xs text-gray-500 dark:text-gray-400">同步進行中</span>
+                                <span className="text-xs text-gray-500 dark:text-gray-400">
+                                    {dbStatus.loading ? '更新中...' : '同步進行中'}
+                                </span>
                             </div>
                         </div>
                     </div>

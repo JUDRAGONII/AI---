@@ -5,76 +5,38 @@ import { Activity, CheckCircle, XCircle, Clock, AlertTriangle, RefreshCw } from 
 
 export default function APIManagement() {
     const [refreshing, setRefreshing] = useState(false)
+    const [apiStatus, setApiStatus] = useState([])
+    const [loading, setLoading] = useState(true)
+    const [lastUpdated, setLastUpdated] = useState(null)
 
-    // API 狀態資料
-    const apiStatus = [
-        {
-            name: 'TWSE OpenAPI',
-            category: '台股資料',
-            status: 'healthy',
-            uptime: 99.8,
-            latency: 125,
-            lastUpdate: '2分鐘前',
-            requestsToday: 1250,
-            errorRate: 0.2,
-            rateLimit: '無限制'
-        },
-        {
-            name: 'TDCC Open Data',
-            category: '籌碼資料',
-            status: 'healthy',
-            uptime: 98.5,
-            latency: 380,
-            lastUpdate: '15分鐘前',
-            requestsToday: 45,
-            errorRate: 1.5,
-            rateLimit: '每週1次'
-        },
-        {
-            name: 'yfinance',
-            category: '美股資料',
-            status: 'healthy',
-            uptime: 99.2,
-            latency: 520,
-            lastUpdate: '5分鐘前',
-            requestsToday: 850,
-            errorRate: 0.8,
-            rateLimit: '無限制'
-        },
-        {
-            name: 'Gemini API',
-            category: 'AI服務',
-            status: 'warning',
-            uptime: 97.5,
-            latency: 2500,
-            lastUpdate: '1分鐘前',
-            requestsToday: 125,
-            errorRate: 2.5,
-            rateLimit: '60次/分鐘'
-        },
-        {
-            name: 'FRED API',
-            category: '宏觀經濟',
-            status: 'healthy',
-            uptime: 99.9,
-            latency: 210,
-            lastUpdate: '30分鐘前',
-            requestsToday: 15,
-            errorRate: 0.1,
-            rateLimit: '無限制'
-        },
-        {
-            name: 'Alpha Vantage',
-            category: '新聞資料',
-            status: 'error',
-            uptime: 85.2,
-            latency: 0,
-            lastUpdate: '2小時前',
-            requestsToday: 5,
-            errorRate: 15.0,
-            rateLimit: '25次/天'
+    useEffect(() => {
+        fetchApiStatus()
+
+        // 設置定時刷新 (每30秒)
+        const interval = setInterval(fetchApiStatus, 30000)
+        return () => clearInterval(interval)
+    }, [])
+
+    const fetchApiStatus = async () => {
+        try {
+            setRefreshing(true)
+            const response = await fetch('http://localhost:5000/api/system/api-status')
+            if (!response.ok) throw new Error('API request failed')
+
+            const data = await response.json()
+            setApiStatus(data.apis)
+            setLastUpdated(new Date().toLocaleTimeString())
+        } catch (error) {
+            console.error('Failed to fetch API status:', error)
+        } finally {
+            setRefreshing(false)
+            setLoading(false)
         }
-    ]
+    }
+
+    const handleRefresh = () => {
+        fetchApiStatus()
+    }
 
     // 整體狀態統計
     const stats = {
@@ -82,12 +44,20 @@ export default function APIManagement() {
         healthy: apiStatus.filter(api => api.status === 'healthy').length,
         warning: apiStatus.filter(api => api.status === 'warning').length,
         error: apiStatus.filter(api => api.status === 'error').length,
-        avgUptime: (apiStatus.reduce((sum, api) => sum + api.uptime, 0) / apiStatus.length).toFixed(1)
+        avgUptime: apiStatus.length > 0
+            ? (apiStatus.reduce((sum, api) => sum + api.uptime, 0) / apiStatus.length).toFixed(1)
+            : 0
     }
 
-    const handleRefresh = () => {
-        setRefreshing(true)
-        setTimeout(() => setRefreshing(false), 2000)
+    if (loading) {
+        return (
+            <div className="p-8 flex items-center justify-center h-screen">
+                <div className="text-center">
+                    <RefreshCw className="w-12 h-12 animate-spin text-blue-600 mx-auto mb-4" />
+                    <p className="text-gray-600 dark:text-gray-400">載入 API 狀態中...</p>
+                </div>
+            </div>
+        )
     }
 
     return (
@@ -95,16 +65,16 @@ export default function APIManagement() {
             {/* Header */}
             <div className="flex items-center justify-between">
                 <div>
-                    <h1 className="text-3xl font-bold">API 與數據源管理</h1>
+                    <h1 className="text-3xl font-bold text-gray-900 dark:text-white">API 與數據源管理</h1>
                     <p className="text-gray-600 dark:text-gray-400 mt-2">
-                        即時監控所有 API 連線狀態與效能指標
+                        即時監控所有 API 連線狀態與效能指標 {lastUpdated && `(最後更新: ${lastUpdated})`}
                     </p>
                 </div>
 
                 <button
                     onClick={handleRefresh}
                     disabled={refreshing}
-                    className="btn btn-primary flex items-center gap-2"
+                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-400 flex items-center gap-2 transition-colors"
                 >
                     <RefreshCw className={`w-5 h-5 ${refreshing ? 'animate-spin' : ''}`} />
                     重新整理
@@ -153,14 +123,14 @@ export default function APIManagement() {
             </div>
 
             {/* 使用建議 */}
-            <div className="card bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-700">
-                <h3 className="font-bold text-lg mb-3">💡 API 使用建議</h3>
-                <div className="space-y-2 text-sm">
+            <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-lg p-6">
+                <h3 className="font-bold text-lg mb-3 text-blue-900 dark:text-blue-100">💡 API 使用建議</h3>
+                <div className="space-y-2 text-sm text-blue-800 dark:text-blue-200">
                     <p>✅ 定期檢查 API 狀態，確保資料來源穩定</p>
                     <p>✅ 注意速率限制，避免超出配額</p>
-                    <p>⚠️ Alpha Vantage 當前錯誤率較高，建議檢查 API Key</p>
-                    <p>⚠️ Gemini API 延遲較高（2.5秒），屬正常現象</p>
-                    <p>💡 TDCC 資料每週五更新，無需頻繁請求</p>
+                    <p>✅ Gemini API (AI服務) 延遲較高（約2.5秒）屬正常現象</p>
+                    <p>💡 資料庫狀態直接影響所有數據查詢速度</p>
+                    <p>💡 黃金與匯率數據每日自動同步</p>
                 </div>
             </div>
         </div>
@@ -177,7 +147,7 @@ function StatusCard({ label, value, icon, color }) {
     }
 
     return (
-        <div className={`card ${colorClasses[color]}`}>
+        <div className={`p-6 rounded-lg shadow-sm ${colorClasses[color]}`}>
             <div className="flex items-center gap-2 mb-2">
                 {icon}
                 <span className="text-sm font-medium">{label}</span>
@@ -207,20 +177,26 @@ function APICard({ api }) {
             color: 'text-red-600 dark:text-red-400',
             bg: 'bg-red-50 dark:bg-red-900/30',
             text: '錯誤'
+        },
+        unknown: {
+            icon: <Activity className="w-5 h-5" />,
+            color: 'text-gray-600 dark:text-gray-400',
+            bg: 'bg-gray-50 dark:bg-gray-800',
+            text: '未知'
         }
     }
 
-    const status = statusConfig[api.status]
+    const status = statusConfig[api.status] || statusConfig.unknown
 
     return (
-        <div className="card">
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
             <div className="flex items-start justify-between mb-4">
                 <div className="flex items-center gap-3">
                     <div className={`p-2 rounded-lg ${status.bg}`}>
                         {status.icon}
                     </div>
                     <div>
-                        <h3 className="text-xl font-bold">{api.name}</h3>
+                        <h3 className="text-xl font-bold text-gray-900 dark:text-white">{api.name}</h3>
                         <p className="text-sm text-gray-600 dark:text-gray-400">{api.category}</p>
                     </div>
                 </div>
@@ -242,7 +218,7 @@ function APICard({ api }) {
                     good={api.latency < 500}
                 />
                 <MetricItem
-                    label="今日請求"
+                    label="數據筆數/請求"
                     value={api.requestsToday}
                 />
                 <MetricItem
@@ -267,7 +243,11 @@ function APICard({ api }) {
 
 // 指標項目
 function MetricItem({ label, value, good }) {
-    const colorClass = good === undefined ? '' : good ? 'text-green-600 dark:text-green-400' : 'text-orange-600 dark:text-orange-400'
+    const colorClass = good === undefined
+        ? 'text-gray-900 dark:text-white'
+        : good
+            ? 'text-green-600 dark:text-green-400'
+            : 'text-orange-600 dark:text-orange-400'
 
     return (
         <div>
