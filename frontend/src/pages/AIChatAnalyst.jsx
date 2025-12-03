@@ -2,6 +2,7 @@
 // 自然語言查詢介面、上下文理解、圖表生成
 import { useState, useRef, useEffect } from 'react'
 import { Send, Bot, User, TrendingUp, BarChart3, Lightbulb } from 'lucide-react'
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 
 export default function AIChatAnalyst() {
     const [messages, setMessages] = useState([
@@ -21,89 +22,6 @@ export default function AIChatAnalyst() {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
     }
 
-    useEffect(() => {
-        scrollToBottom()
-    }, [messages])
-
-    // 模擬 AI 回覆
-    const getAIResponse = (userMessage) => {
-        const lowerMsg = userMessage.toLowerCase()
-
-        if (lowerMsg.includes('2330') || lowerMsg.includes('台積電')) {
-            return {
-                content: `根據最新的因子分析，台積電（2330）表現如下：
-
-**因子分數**
-- 價值因子：75.2 分（估值合理）
-- 品質因子：88.5 分（優秀）
-- 動能因子：65.8 分（中等）
-- 總分：79.7 分
-
-**技術分析**
-- 當前價格：$580
-- MA20：$575（價格在均線之上）
-- RSI：62（中性偏多）
-
-**建議**
-台積電基本面優異，品質因子分數高，建議長期持有。短期技術面呈現上升趨勢，可考慮逢低加碼。`,
-                type: 'analysis'
-            }
-        }
-
-        if (lowerMsg.includes('投資組合') || lowerMsg.includes('portfolio')) {
-            return {
-                content: `您的投資組合分析：
-
-**風險評估**
-- 總資產：$5.85M
-- 總報酬率：+12.5%
-- 夏普比率：0.82
-- 最大回撤：-5.2%
-
-**配置建議**
-1. 台積電持股 20% 略高，建議降至 15%
-2. 增加 ETF 配置至 30% 以分散風險
-3. 新增債券型資產 10-15%
-
-是否需要我提供詳細的優化方案？`,
-                type: 'portfolio'
-            }
-        }
-
-        if (lowerMsg.includes('市場') || lowerMsg.includes('大盤')) {
-            return {
-                content: `今日市場概況：
-
-**台股**
-- 加權指數：17,850 (+0.71%)
-- 成交量：2,850 億
-- 外資買超：+125 億
-
-**美股**
-- NASDAQ：15,632 (-0.29%)
-- S&P 500：4,582 (+0.15%)
-
-**分析**
-台股在科技股帶動下走強，外資持續買超。美股則因通膨數據影響呈現震盪。建議關注半導體產業動態。`,
-                type: 'market'
-            }
-        }
-
-        return {
-            content: `我理解您的問題是關於「${userMessage}」。
-
-目前我可以幫您分析：
-- 個股基本面與技術面分析
-- 投資組合建議與優化
-- 市場趨勢與宏觀分析
-- 因子分數解讀
-- 風險評估與對沖策略
-
-請提供更具體的問題，我會為您提供詳細分析。`,
-            type: 'general'
-        }
-    }
-
     const handleSend = async () => {
         if (!input.trim()) return
 
@@ -119,13 +37,14 @@ export default function AIChatAnalyst() {
         setLoading(true)
 
         // 模擬 AI 思考時間
-        setTimeout(() => {
-            const aiResponse = getAIResponse(input)
+        setTimeout(async () => {
+            const aiResponse = await getAIResponse(input)
             const assistantMessage = {
                 id: messages.length + 2,
                 role: 'assistant',
                 content: aiResponse.content,
                 type: aiResponse.type,
+                chart: aiResponse.chart,
                 timestamp: new Date()
             }
             setMessages(prev => [...prev, assistantMessage])
@@ -241,8 +160,8 @@ function MessageBubble({ message }) {
         <div className={`flex items-start gap-3 ${isUser ? 'flex-row-reverse' : ''}`}>
             {/* 頭像 */}
             <div className={`p-2 rounded-full ${isUser
-                    ? 'bg-green-100 dark:bg-green-900/30'
-                    : 'bg-blue-100 dark:bg-blue-900/30'
+                ? 'bg-green-100 dark:bg-green-900/30'
+                : 'bg-blue-100 dark:bg-blue-900/30'
                 }`}>
                 {isUser ? (
                     <User className="w-5 h-5 text-green-600 dark:text-green-400" />
@@ -254,10 +173,47 @@ function MessageBubble({ message }) {
             {/* 訊息內容 */}
             <div className={`flex-1 max-w-3xl ${isUser ? 'flex flex-col items-end' : ''}`}>
                 <div className={`rounded-lg p-4 ${isUser
-                        ? 'bg-blue-600 text-white'
-                        : 'bg-gray-100 dark:bg-gray-800'
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-gray-100 dark:bg-gray-800'
                     }`}>
                     <div className="whitespace-pre-wrap">{message.content}</div>
+
+                    {/* 圖表生成 */}
+                    {message.chart && message.chart.length > 0 && (
+                        <div className="mt-4 p-3 bg-white dark:bg-gray-900 rounded-lg">
+                            <div className="flex items-center gap-2 mb-2 text-gray-700 dark:text-gray-300">
+                                <BarChart3 className="w-4 h-4" />
+                                <span className="text-sm font-medium">價格走勢圖</span>
+                            </div>
+                            <ResponsiveContainer width="100%" height={200}>
+                                <LineChart data={message.chart}>
+                                    <CartesianGrid strokeDasharray="3 3" className="dark:stroke-gray-700" />
+                                    <XAxis
+                                        dataKey="date"
+                                        className="text-xs"
+                                        stroke="currentColor"
+                                    />
+                                    <YAxis
+                                        className="text-xs"
+                                        stroke="currentColor"
+                                    />
+                                    <Tooltip
+                                        contentStyle={{
+                                            backgroundColor: 'var(--color-bg)',
+                                            border: '1px solid var(--color-border)'
+                                        }}
+                                    />
+                                    <Line
+                                        type="monotone"
+                                        dataKey="price"
+                                        stroke="#3b82f6"
+                                        strokeWidth={2}
+                                        dot={false}
+                                    />
+                                </LineChart>
+                            </ResponsiveContainer>
+                        </div>
+                    )}
                 </div>
 
                 {/* 時間戳記 */}

@@ -1,91 +1,121 @@
 import React, { useState, useEffect } from 'react';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
-import { TrendingUp, Activity } from 'lucide-react';
+import { TrendingUp, Activity, BarChart3 } from 'lucide-react';
+import TradingViewChart from '../components/TradingViewChart';
 
 const TechnicalAnalysis = () => {
     const [stockCode, setStockCode] = useState('2330');
     const [market, setMarket] = useState('tw');
-    const [indicator, setIndicator] = useState('rsi');
-    const [data, setData] = useState([]);
+    const [selectedIndicators, setSelectedIndicators] = useState({ ma: true });
+    const [priceData, setPriceData] = useState([]);
+    const [indicatorsData, setIndicatorsData] = useState({});
     const [loading, setLoading] = useState(false);
     const [stats, setStats] = useState(null);
 
     useEffect(() => {
-        fetchIndicatorData();
-    }, [stockCode, market, indicator]);
+        fetchChartData();
+    }, [stockCode, market]);
 
-    const fetchIndicatorData = async () => {
+    useEffect(() => {
+        if (priceData.length > 0) {
+            fetchIndicators();
+        }
+    }, [selectedIndicators, priceData]);
+
+    const fetchChartData = async () => {
         if (!stockCode) return;
 
         setLoading(true);
         try {
-            const response = await fetch(`http://localhost:5000/api/indicators/${stockCode}/${indicator}?market=${market}`);
-            const result = await response.json();
+            // 獲取價格數據
+            const priceResponse = await fetch(`http://localhost:5000/api/prices/${stockCode}?market=${market}&limit=100`);
+            const priceResult = await priceResponse.json();
 
-            if (result.data) {
-                const chartData = result.data.reverse().map(item => ({
-                    date: new Date(item.trade_date).toLocaleDateString('zh-TW', { month: '2-digit', day: '2-digit' }),
-                    value: indicator === 'rsi' ? item.rsi :
-                        indicator === 'ma' ? item.ma :
-                            item.close_price,
+            if (priceResult.prices && priceResult.prices.length > 0) {
+                const chartData = priceResult.prices.map(item => ({
+                    time: item.trade_date,
+                    open: parseFloat(item.open_price),
+                    high: parseFloat(item.high_price),
+                    low: parseFloat(item.low_price),
                     close: parseFloat(item.close_price),
-                    ...(indicator === 'macd' && {
-                        macd: item.macd,
-                        signal: item.signal,
-                        histogram: item.histogram
-                    }),
-                    ...(indicator === 'bollinger' && {
-                        upper: item.upper,
-                        middle: item.middle,
-                        lower: item.lower
-                    })
-                }));
+                    volume: parseFloat(item.volume || 0),
+                })).reverse();
 
-                setData(chartData);
+                setPriceData(chartData);
 
+                // 計算統計
                 if (chartData.length > 0) {
-                    const values = chartData.map(d => d.value).filter(v => v != null);
+                    const closes = chartData.map(d => d.close);
                     setStats({
-                        current: values[values.length - 1],
-                        max: Math.max(...values),
-                        min: Math.min(...values),
-                        avg: values.reduce((a, b) => a + b, 0) / values.length
+                        current: closes[closes.length - 1],
+                        max: Math.max(...closes),
+                        min: Math.min(...closes),
+                        avg: closes.reduce((a, b) => a + b, 0) / closes.length
                     });
                 }
             }
         } catch (error) {
-            console.error('獲取技術指標失敗:', error);
+            console.error('獲取價格數據失敗:', error);
         } finally {
             setLoading(false);
         }
     };
 
-    const getIndicatorName = () => {
-        const names = {
-            rsi: 'RSI (相對強弱指標)',
-            ma: 'MA (移動平均線)',
-            macd: 'MACD',
-            bollinger: 'Bollinger Bands (布林通道)'
-        };
-        return names[indicator] || indicator;
+    const fetchIndicators = async () => {
+        const indicators = {};
+
+        try {
+            // 獲取 MA 數據
+            if (selectedIndicators.ma) {
+                const maResponse = await fetch(`http://localhost:5000/api/indicators/${stockCode}/ma?market=${market}&period=20`);
+                const maResult = await maResponse.json();
+
+                if (maResult.data && maResult.data.length > 0) {
+                    indicators.ma = {
+                        period: 20,
+                        data: maResult.data.map(item => ({
+                            time: item.trade_date,
+                            value: parseFloat(item.ma),
+                        })).reverse()
+                    };
+                }
+            }
+
+            // 獲取 RSI 數據
+            if (selectedIndicators.rsi) {
+                const rsiResponse = await fetch(`http://localhost:5000/api/indicators/${stockCode}/rsi?market=${market}`);
+                const rsiResult = await rsiResponse.json();
+
+                if (rsiResult.data && rsiResult.data.length > 0) {
+                    indicators.rsi = {
+                        data: rsiResult.data.map(item => ({
+                            time: item.trade_date,
+                            value: parseFloat(item.rsi),
+                        })).reverse()
+                    };
+                }
+            }
+
+            setIndicatorsData(indicators);
+        } catch (error) {
+            console.error('獲取技術指標失敗:', error);
+        }
     };
 
-    const getIndicatorColor = (value) => {
-        if (indicator === 'rsi') {
-            if (value > 70) return 'text-red-600';
-            if (value < 30) return 'text-green-600';
-            return 'text-gray-900 dark:text-white';
-        }
-        return 'text-gray-900 dark:text-white';
+    const toggleIndicator = (indicator) => {
+        setSelectedIndicators(prev => ({
+            ...prev,
+            [indicator]: !prev[indicator]
+        }));
     };
 
     return (
         <div className="space-y-6">
             <div>
                 <h1 className="text-2xl font-bold text-gray-900 dark:text-white">技術分析中心</h1>
-                <p className="text-gray-600 dark:text-gray-400 mt-1">即時技術指標計算與圖表展示</p>
+                <p className="text-gray-600 dark:text-gray-400 mt-1">專業級 K 線圖與技術指標分析</p>
             </div>
 
+            {/* 控制面板 */}
             <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                     <div>
@@ -115,130 +145,116 @@ const TechnicalAnalysis = () => {
                         </select>
                     </div>
 
-                    <div>
+                    <div className="md:col-span-2">
                         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                             技術指標
                         </label>
-                        <select
-                            value={indicator}
-                            onChange={(e) => setIndicator(e.target.value)}
-                            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                        >
-                            <option value="rsi">RSI</option>
-                            <option value="ma">移動平均線</option>
-                            <option value="macd">MACD</option>
-                            <option value="bollinger">布林通道</option>
-                        </select>
-                    </div>
-
-                    <div className="flex items-end">
-                        <button
-                            onClick={fetchIndicatorData}
-                            disabled={loading}
-                            className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 flex items-center justify-center space-x-2"
-                        >
-                            <Activity className="w-4 h-4" />
-                            <span>{loading ? '載入中...' : '查詢'}</span>
-                        </button>
+                        <div className="flex gap-2 flex-wrap">
+                            <button
+                                onClick={() => toggleIndicator('ma')}
+                                className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${selectedIndicators.ma
+                                    ? 'bg-blue-600 text-white'
+                                    : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300'
+                                    }`}
+                            >
+                                MA(20)
+                            </button>
+                            <button
+                                onClick={() => toggleIndicator('rsi')}
+                                className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${selectedIndicators.rsi
+                                    ? 'bg-orange-600 text-white'
+                                    : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300'
+                                    }`}
+                            >
+                                RSI
+                            </button>
+                            <button
+                                onClick={fetchChartData}
+                                disabled={loading}
+                                className="ml-auto px-4 py-1.5 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 flex items-center gap-2"
+                            >
+                                <Activity className="w-4 h-4" />
+                                <span>{loading ? '載入中...' : '刷新'}</span>
+                            </button>
+                        </div>
                     </div>
                 </div>
             </div>
 
+            {/* 統計卡片 */}
             {stats && (
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                     <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
-                        <div className="text-sm text-gray-600 dark:text-gray-400 mb-1">當前值</div>
-                        <div className={`text-2xl font-bold ${getIndicatorColor(stats.current)}`}>
-                            {stats.current?.toFixed(2)}
-                        </div>
-                    </div>
-                    <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
-                        <div className="text-sm text-gray-600 dark:text-gray-400 mb-1">最高</div>
-                        <div className="text-2xl font-bold text-green-600">
-                            {stats.max?.toFixed(2)}
-                        </div>
-                    </div>
-                    <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
-                        <div className="text-sm text-gray-600 dark:text-gray-400 mb-1">最低</div>
-                        <div className="text-2xl font-bold text-red-600">
-                            {stats.min?.toFixed(2)}
-                        </div>
-                    </div>
-                    <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
-                        <div className="text-sm text-gray-600 dark:text-gray-400 mb-1">平均</div>
+                        <div className="text-sm text-gray-600 dark:text-gray-400 mb-1">當前價格</div>
                         <div className="text-2xl font-bold text-gray-900 dark:text-white">
-                            {stats.avg?.toFixed(2)}
+                            ${stats.current.toFixed(2)}
+                        </div>
+                    </div>
+                    <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
+                        <div className="text-sm text-gray-600 dark:text-gray-400 mb-1">最高價</div>
+                        <div className="text-2xl font-bold text-red-600">
+                            ${stats.max.toFixed(2)}
+                        </div>
+                    </div>
+                    <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
+                        <div className="text-sm text-gray-600 dark:text-gray-400 mb-1">最低價</div>
+                        <div className="text-2xl font-bold text-green-600">
+                            ${stats.min.toFixed(2)}
+                        </div>
+                    </div>
+                    <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
+                        <div className="text-sm text-gray-600 dark:text-gray-400 mb-1">平均價</div>
+                        <div className="text-2xl font-bold text-gray-900 dark:text-white">
+                            ${stats.avg.toFixed(2)}
                         </div>
                     </div>
                 </div>
             )}
 
+            {/* K 線圖表 */}
             <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
-                <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4">
-                    {stockCode} - {getIndicatorName()}
-                </h2>
+                <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center gap-3">
+                        <BarChart3 className="w-6 h-6 text-blue-600" />
+                        <h2 className="text-xl font-bold text-gray-900 dark:text-white">
+                            {stockCode} K 線圖
+                        </h2>
+                    </div>
+                    <div className="text-sm text-gray-600 dark:text-gray-400">
+                        近 100 個交易日
+                    </div>
+                </div>
 
                 {loading ? (
-                    <div className="flex items-center justify-center h-96">
-                        <div className="text-gray-400">載入中...</div>
-                    </div>
-                ) : data.length > 0 ? (
-                    <ResponsiveContainer width="100%" height={400}>
-                        {indicator === 'rsi' ? (
-                            <LineChart data={data}>
-                                <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
-                                <XAxis dataKey="date" stroke="#9CA3AF" />
-                                <YAxis stroke="#9CA3AF" domain={[0, 100]} />
-                                <Tooltip contentStyle={{ backgroundColor: '#1F2937', border: 'none', borderRadius: '8px', color: '#fff' }} />
-                                <Legend />
-                                <Line type="monotone" dataKey="value" stroke="#3B82F6" strokeWidth={2} name="RSI" dot={false} />
-                                <Line type="monotone" dataKey={() => 70} stroke="#EF4444" strokeWidth={1} strokeDasharray="5 5" name="超買區" />
-                                <Line type="monotone" dataKey={() => 30} stroke="#10B981" strokeWidth={1} strokeDasharray="5 5" name="超賣區" />
-                            </LineChart>
-                        ) : indicator === 'bollinger' ? (
-                            <LineChart data={data}>
-                                <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
-                                <XAxis dataKey="date" stroke="#9CA3AF" />
-                                <YAxis stroke="#9CA3AF" />
-                                <Tooltip contentStyle={{ backgroundColor: '#1F2937', border: 'none', borderRadius: '8px', color: '#fff' }} />
-                                <Legend />
-                                <Line type="monotone" dataKey="upper" stroke="#EF4444" strokeWidth={1} name="上軌" dot={false} />
-                                <Line type="monotone" dataKey="middle" stroke="#3B82F6" strokeWidth={2} name="中軌" dot={false} />
-                                <Line type="monotone" dataKey="lower" stroke="#10B981" strokeWidth={1} name="下軌" dot={false} />
-                                <Line type="monotone" dataKey="close" stroke="#F59E0B" strokeWidth={2} name="收盤價" dot={false} />
-                            </LineChart>
-                        ) : (
-                            <LineChart data={data}>
-                                <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
-                                <XAxis dataKey="date" stroke="#9CA3AF" />
-                                <YAxis stroke="#9CA3AF" />
-                                <Tooltip contentStyle={{ backgroundColor: '#1F2937', border: 'none', borderRadius: '8px', color: '#fff' }} />
-                                <Legend />
-                                <Line type="monotone" dataKey="value" stroke="#3B82F6" strokeWidth={2} name={getIndicatorName()} dot={false} />
-                                <Line type="monotone" dataKey="close" stroke="#9CA3AF" strokeWidth={1} name="收盤價" dot={false} />
-                            </LineChart>
-                        )}
-                    </ResponsiveContainer>
-                ) : (
-                    <div className="flex items-center justify-center h-96">
-                        <div className="text-center text-gray-500">
-                            <Activity className="w-16 h-16 mx-auto mb-4 opacity-50" />
-                            <p>請輸入股票代碼並選擇指標</p>
+                    <div className="flex items-center justify-center h-[500px]">
+                        <div className="text-center">
+                            <Activity className="w-16 h-16 mx-auto mb-4 text-blue-600 animate-pulse" />
+                            <p className="text-gray-600 dark:text-gray-400">載入圖表數據中...</p>
                         </div>
+                    </div>
+                ) : priceData.length > 0 ? (
+                    <TradingViewChart
+                        data={priceData}
+                        indicators={indicatorsData}
+                        height={500}
+                    />
+                ) : (
+                    <div className="flex items-center justify-center h-[500px] text-gray-500">
+                        請輸入股票代碼並點擊查詢
                     </div>
                 )}
             </div>
 
-            {indicator === 'rsi' && data.length > 0 && (
-                <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
-                    <h3 className="font-semibold text-blue-900 dark:text-blue-300 mb-2">RSI 指標說明</h3>
-                    <ul className="text-sm text-blue-800 dark:text-blue-400 space-y-1">
-                        <li>• RSI {'>'} 70：超買區域，可能面臨回調壓力</li>
-                        <li>• RSI {'<'} 30：超賣區域，可能出現反彈機會</li>
-                        <li>• RSI 50 附近：多空平衡區域</li>
-                    </ul>
-                </div>
-            )}
+            {/* 使用說明 */}
+            <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+                <h3 className="font-semibold text-blue-900 dark:text-blue-300 mb-2">💡 操作提示</h3>
+                <ul className="space-y-1 text-sm text-blue-800 dark:text-blue-400">
+                    <li>• 使用滑鼠滾輪縮放圖表</li>
+                    <li>• 按住滑鼠左鍵拖動可平移圖表</li>
+                    <li>• 點擊技術指標按鈕可切換顯示</li>
+                    <li>• 游標移動到圖表上可查看詳細數值</li>
+                </ul>
+            </div>
         </div>
     );
 };

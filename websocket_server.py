@@ -75,7 +75,7 @@ def background_market_update():
         try:
             data = get_market_data()
             if data:
-                socketio.emit('market_update', data, broadcast=True)
+                socketio.emit('market_update', data, namespace='/')
                 print(f"📡 推送市場更新: Gold=${data['gold']}, USD/TWD={data['usd_twd']}")
             time.sleep(5)  # 每5秒更新一次
         except Exception as e:

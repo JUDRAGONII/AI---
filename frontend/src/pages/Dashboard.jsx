@@ -1,8 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { TrendingUp, TrendingDown, DollarSign, Activity, AlertCircle, Brain, Eye } from 'lucide-react';
+import { TrendingUp, TrendingDown, DollarSign, Activity, AlertCircle, Brain, Eye, Wifi } from 'lucide-react';
+import { io } from 'socket.io-client';
 
 const Dashboard = () => {
     const [marketData, setMarketData] = useState(null);
+    const [realtimeData, setRealtimeData] = useState(null);
+    const [isConnected, setIsConnected] = useState(false);
     const [aiInsights] = useState({
         sentiment: 'neutral',
         marketView: '當前市場處於盤整階段，台股受半導體產業影響，美股科技股表現強勁。建議觀望為主。',
@@ -23,6 +26,28 @@ const Dashboard = () => {
 
     useEffect(() => {
         fetchDashboardData();
+
+        // 連接 WebSocket
+        const socket = io('http://localhost:5001');
+
+        socket.on('connect', () => {
+            console.log('✅ WebSocket 已連接');
+            setIsConnected(true);
+        });
+
+        socket.on('disconnect', () => {
+            console.log('❌ WebSocket 已斷開');
+            setIsConnected(false);
+        });
+
+        socket.on('market_update', (data) => {
+            console.log('📡 收到即時數據:', data);
+            setRealtimeData(data);
+        });
+
+        return () => {
+            socket.disconnect();
+        };
     }, []);
 
     const fetchDashboardData = async () => {
@@ -53,16 +78,27 @@ const Dashboard = () => {
             {/* 頁面標題 */}
             <div className="flex items-center justify-between">
                 <div>
-                    <h1 className="text-3xl font-bold text-gray-900 dark:text-white">投資指揮中心</h1>
+                    <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
+                        投資指揮中心
+                    </h1>
                     <p className="text-gray-600 dark:text-gray-400 mt-2">市場總覽 + AI 智能觀點 + 持股追蹤</p>
                 </div>
-                <button
-                    onClick={fetchDashboardData}
-                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2"
-                >
-                    <Activity className="w-4 h-4" />
-                    刷新數據
-                </button>
+                <div className="flex items-center gap-4">
+                    {/* WebSocket 連接狀態 */}
+                    <div className={`flex items-center gap-2 px-3 py-1.5 rounded-lg ${isConnected ? 'bg-green-100 dark:bg-green-900/30' : 'bg-gray-100 dark:bg-gray-800'}`}>
+                        <Wifi className={`w-4 h-4 ${isConnected ? 'text-green-600 dark:text-green-400' : 'text-gray-400'}`} />
+                        <span className={`text-sm font-medium ${isConnected ? 'text-green-700 dark:text-green-300' : 'text-gray-500'}`}>
+                            {isConnected ? '即時連線中' : '離線'}
+                        </span>
+                    </div>
+                    <button
+                        onClick={fetchDashboardData}
+                        className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2"
+                    >
+                        <Activity className="w-4 h-4" />
+                        刷新數據
+                    </button>
+                </div>
             </div>
 
             {/* AI 智能觀點區塊 */}
@@ -223,7 +259,7 @@ const Dashboard = () => {
                     <div className="space-y-3">
                         <StatItem
                             label="當前價格"
-                            value={marketData?.gold?.price ? `$${marketData.gold.price.toFixed(2)}` : 'N/A'}
+                            value={realtimeData?.gold ? `$${realtimeData.gold.toFixed(2)}` : (marketData?.gold?.price ? `$${marketData.gold.price.toFixed(2)}` : 'N/A')}
                         />
                         <StatItem label="數據筆數" value={marketData?.gold?.count || 251} />
                         <StatItem label="數據來源" value="yfinance" />
@@ -239,8 +275,8 @@ const Dashboard = () => {
                     <div className="space-y-3">
                         <StatItem
                             label="USD/TWD"
-                            value={marketData?.forex?.usd_twd ? marketData.forex.usd_twd.toFixed(2) : 'N/A'}
-                        />
+                            value={realtimeData?.usd_twd ? realtimeData.usd_twd.toFixed(2) : (marketData?.forex?.usd_twd ? marketData.forex.usd_twd.toFixed(2) : 'N/A')}
+                        />>
                         <StatItem label="追蹤貨幣對" value={marketData?.forex?.pairs || '5對'} />
                         <StatItem label="數據筆數" value={marketData?.forex?.count || 665} />
                     </div>
