@@ -109,13 +109,13 @@ def prices(code):
         cursor.execute("""
             SELECT * FROM tw_stock_prices 
             WHERE stock_code = %s 
-            ORDER BY trade_date DESC LIMIT %s
+            ORDER BY trade_date ASC LIMIT %s
         """, (code, days))
     else:
         cursor.execute("""
             SELECT * FROM us_stock_prices 
             WHERE symbol = %s 
-            ORDER BY trade_date DESC LIMIT %s
+            ORDER BY trade_date ASC LIMIT %s
         """, (code, days))
     
     data = [dict(row) for row in cursor.fetchall()]
@@ -419,15 +419,23 @@ def get_ai_reports():
         cursor = conn.cursor(cursor_factory=extras.RealDictCursor)
         
         limit = request.args.get('limit', 10, type=int)
-        report_type = request.args.get('type', 'market')
+        report_type = request.args.get('type', None)
         
-        cursor.execute("""
-            SELECT id, title, report_type, sentiment, accuracy, created_at, content
-            FROM ai_analysis_reports
-            WHERE report_type = %s
-            ORDER BY created_at DESC
-            LIMIT %s
-        """, (report_type, limit))
+        if report_type:
+            cursor.execute("""
+                SELECT id, report_type, report_title, report_content, created_at, generated_by
+                FROM ai_reports
+                WHERE report_type = %s
+                ORDER BY created_at DESC
+                LIMIT %s
+            """, (report_type, limit))
+        else:
+            cursor.execute("""
+                SELECT id, report_type, report_title, report_content, created_at, generated_by
+                FROM ai_reports
+                ORDER BY created_at DESC
+                LIMIT %s
+            """, (limit,))
         
         reports = [dict(row) for row in cursor.fetchall()]
         
@@ -850,3 +858,433 @@ if __name__ == '__main__':
     print("=" * 60)
     
     app.run(host='0.0.0.0', port=port, debug=True)
+# ========== ??蝯?蝡舫? ==========
+@app.route('/api/portfolio', methods=['GET'])
+def get_portfolio():
+    """?脣??冽??蝯?"""
+    try:
+        conn = get_db()
+        cursor = conn.cursor(cursor_factory=extras.RealDictCursor)
+        
+        # ?脣????
+        cursor.execute("""
+            SELECT 
+                up.id,
+                up.stock_code,
+                up.market,
+                up.quantity,
+                up.avg_cost,
+                up.purchase_date,
+                up.notes,
+                CASE 
+                    WHEN up.market = 'tw' THEN (
+                        SELECT close_price 
+                        FROM tw_stock_prices 
+                        WHERE stock_code = up.stock_code 
+                        ORDER BY trade_date DESC 
+                        LIMIT 1
+                    )
+                    WHEN up.market = 'us' THEN (
+                        SELECT close_price 
+                        FROM us_stock_prices 
+                        WHERE stock_code = up.stock_code 
+                        ORDER BY trade_date DESC 
+                        LIMIT 1
+                    )
+                END as current_price
+            FROM user_portfolios up
+            WHERE up.user_id = 1
+            ORDER BY up.created_at DESC
+        """)
+        
+        holdings = [dict(row) for row in cursor.fetchall()]
+        
+        # 閮?瘥????豢?
+        total_value = 0
+        total_cost = 0
+        
+        for holding in holdings:
+            current_price = float(holding['current_price']) if holding['current_price'] else float(holding['avg_cost'])
+            avg_cost = float(holding['avg_cost'])
+            quantity = holding['quantity']
+            
+            market_value = current_price * quantity
+            cost_value = avg_cost * quantity
+            profit = market_value - cost_value
+            profit_rate = (profit / cost_value * 100) if cost_value > 0 else 0
+            
+            holding['current_price'] = current_price
+            holding['market_value'] = round(market_value, 2)
+            holding['cost_value'] = round(cost_value, 2)
+            holding['profit'] = round(profit, 2)
+            holding['profit_rate'] = round(profit_rate, 2)
+            holding['purchase_date'] = str(holding['purchase_date'])
+            
+            total_value += market_value
+            total_cost += cost_value
+        
+        # 閮?蝮賣???
+        total_profit = total_value - total_cost
+        total_return_rate = (total_profit / total_cost * 100) if total_cost > 0 else 0
+        
+        # 閮?甈?
+        for holding in holdings:
+            holding['weight'] = round((holding['market_value'] / total_value * 100), 2) if total_value > 0 else 0
+        
+        cursor.close()
+        conn.close()
+        
+        return jsonify({
+            'total_value': round(total_value, 2),
+            'total_cost': round(total_cost, 2),
+            'total_profit': round(total_profit, 2),
+            'return_rate': round(total_return_rate, 2),
+            'holdings': holdings
+        })
+        
+    except Exception as e:
+        print(f"?脣???蝯?憭望?: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+
+# Portfolio Holdings API 已移至 portfolio_api.py
+# 以下路由已註解以避免縮排錯誤
+# @app.route('/api/portfolio/holdings', methods=['POST'])
+# @app.route('/api/portfolio/holdings/<int:holding_id>', methods=['DELETE'])
+
+# ========== 鈭斗??亥?蝡舫? ==========
+
+def calculate_transaction_fees(market, transaction_type, price, quantity, broker_name='?之霅'):
+    """閮?鈭斗?鞎餌嚗?蝥祥????"""
+    conn = get_db()
+    cursor = conn.cursor(cursor_factory=extras.RealDictCursor)
+    
+    # ?亥岷?詨?鞎餌?
+    cursor.execute("""
+        SELECT fee_rate, min_fee, discount 
+        FROM broker_fees 
+        WHERE broker_name = %s AND market = %s
+        LIMIT 1
+    """, (broker_name, market))
+    
+    broker_fee_info = cursor.fetchone()
+    cursor.close()
+    conn.close()
+    
+    if not broker_fee_info:
+        # ?身鞎餌?
+        fee_rate = 0.001425 if market == 'tw' else 0
+        min_fee = 20 if market == 'tw' else 0
+        discount = 0.6
+    else:
+        fee_rate = float(broker_fee_info['fee_rate'])
+        min_fee = float(broker_fee_info['min_fee'])
+        discount = float(broker_fee_info['discount'])
+    
+    # 閮???鞎?
+    trade_amount = price * quantity
+    fee = max(trade_amount * fee_rate * discount, min_fee)
+    
+    # 閮?霅漱蝔???∟都?綽?
+    tax = 0
+    if market == 'tw' and transaction_type == 'sell':
+        tax = trade_amount * 0.003  # ?啗霅漱蝔?0.3%
+    
+    # 閮?蝮賡?憿?
+    if transaction_type == 'buy':
+        total = trade_amount + fee
+    else:  # sell
+        total = trade_amount - fee - tax
+    
+    return {
+        'fees': round(fee, 2),
+        'tax': round(tax, 2),
+        'total_amount': round(total, 2)
+    }
+
+
+@app.route('/api/transactions', methods=['GET'])
+def get_transactions():
+    """?脣?鈭斗?閮??”"""
+    try:
+        conn = get_db()
+        cursor = conn.cursor(cursor_factory=extras.RealDictCursor)
+        
+        # ?亥岷?
+        market = request.args.get('market')
+        transaction_type = request.args.get('type')
+        stock_code = request.args.get('stock_code')
+        start_date = request.args.get('start_date')
+        end_date = request.args.get('end_date')
+        limit = request.args.get('limit', 50, type=int)
+        
+        # 瑽遣?亥岷
+        query = "SELECT * FROM transactions WHERE user_id = 1"
+        params = []
+        
+        if market:
+            query += " AND market = %s"
+            params.append(market)
+        if transaction_type:
+            query += " AND transaction_type = %s"
+            params.append(transaction_type)
+        if stock_code:
+            query += " AND stock_code = %s"
+            params.append(stock_code)
+        if start_date:
+            query += " AND transaction_date >= %s"
+            params.append(start_date)
+        if end_date:
+            query += " AND transaction_date <= %s"
+            params.append(end_date)
+        
+        query += " ORDER BY transaction_date DESC, created_at DESC LIMIT %s"
+        params.append(limit)
+        
+        cursor.execute(query, tuple(params))
+        transactions = [dict(row) for row in cursor.fetchall()]
+        
+        # ?澆????
+        for t in transactions:
+            t['transaction_date'] = str(t['transaction_date'])
+            if t.get('settlement_date'):
+                t['settlement_date'] = str(t['settlement_date'])
+        
+        # 閮?蝯梯?
+        cursor.execute("""
+            SELECT 
+                COUNT(CASE WHEN transaction_type = 'buy' THEN 1 END) as total_buy,
+                COUNT(CASE WHEN transaction_type = 'sell' THEN 1 END) as total_sell,
+                COALESCE(SUM(fees), 0) as total_fees,
+                COALESCE(SUM(tax), 0) as total_tax
+            FROM transactions
+            WHERE user_id = 1
+        """)
+        summary = dict(cursor.fetchone())
+        
+        cursor.close()
+        conn.close()
+        
+        return jsonify({
+            'transactions': transactions,
+            'summary': summary
+        })
+        
+    except Exception as e:
+        print(f"?脣?鈭斗?閮?憭望?: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/transactions', methods=['POST'])
+def add_transaction():
+    """?啣?鈭斗?閮?嚗??蝞祥?剁?"""
+    try:
+        data = request.get_json()
+        
+        # 閮?鞎餌
+        fees_info = calculate_transaction_fees(
+            market=data['market'],
+            transaction_type=data['transaction_type'],
+            price=float(data['price']),
+            quantity=int(data['quantity']),
+            broker_name=data.get('broker', '?之霅')
+        )
+        
+        # 閮?鈭文?交?嚗+2嚗?
+        from datetime import datetime, timedelta
+        transaction_date = datetime.strptime(data['transaction_date'], '%Y-%m-%d')
+        settlement_date = transaction_date + timedelta(days=2)
+        
+        conn = get_db()
+        cursor = conn.cursor()
+        
+        cursor.execute("""
+            INSERT INTO transactions 
+            (user_id, stock_code, market, transaction_type, quantity, price, 
+             transaction_date, settlement_date, broker, fees, tax, total_amount, notes)
+            VALUES (1, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            RETURNING id
+        """, (
+            data['stock_code'],
+            data['market'],
+            data['transaction_type'],
+            data['quantity'],
+            data['price'],
+            data['transaction_date'],
+            settlement_date,
+            data.get('broker', '?之霅'),
+            fees_info['fees'],
+            fees_info['tax'],
+            fees_info['total_amount'],
+            data.get('notes', '')
+        ))
+        
+        transaction_id = cursor.fetchone()[0]
+        conn.commit()
+        cursor.close()
+        conn.close()
+        
+        return jsonify({
+            'id': transaction_id, 
+            'message': '鈭斗?閮??啣???',
+            'fees_info': fees_info
+        }), 201
+        
+    except Exception as e:
+        print(f"?啣?鈭斗?閮?憭望?: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/transactions/<int:transaction_id>', methods=['DELETE'])
+def delete_transaction(transaction_id):
+    """?芷鈭斗?閮?"""
+    try:
+        conn = get_db()
+        cursor = conn.cursor()
+        
+        cursor.execute("DELETE FROM transactions WHERE id = %s AND user_id = 1", (transaction_id,))
+        conn.commit()
+        
+        cursor.close()
+        conn.close()
+        
+        return jsonify({'message': '鈭斗?閮??芷??'})
+        
+    except Exception as e:
+        print(f"?芷鈭斗?閮?憭望?: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/brokers', methods=['GET'])
+def get_brokers():
+    """?脣??詨??”"""
+    try:
+        market = request.args.get('market', 'tw')
+        
+        conn = get_db()
+        cursor = conn.cursor(cursor_factory=extras.RealDictCursor)
+        
+        cursor.execute("""
+            SELECT DISTINCT broker_name, fee_rate, min_fee, discount
+            FROM broker_fees
+            WHERE market = %s
+            ORDER BY broker_name
+        """, (market,))
+        
+        brokers = [dict(row) for row in cursor.fetchall()]
+        
+        cursor.close()
+        conn.close()
+        
+        return jsonify({'brokers': brokers})
+        
+    except Exception as e:
+        print(f"?脣??詨??”憭望?: {e}")
+        return jsonify({'error': str(e)}), 500
+# ========== 閮?璅酉蝡舫? ==========
+
+@app.route('/api/signals/<stock_code>', methods=['GET'])
+def get_signals(stock_code):
+    """?脣??銵???暺?鈭文??香鈭∩漱?SI頞眺頞都嚗?""
+    try:
+        market = request.args.get('market', 'tw')
+        days = request.args.get('days', 100, type=int)
+        
+        conn = get_db()
+        cursor = conn.cursor(cursor_factory=extras.RealDictCursor)
+        
+        # ?脣?MA?豢?
+        cursor.execute("""
+            SELECT trade_date, value as ma5
+            FROM technical_indicators
+            WHERE stock_code = %s AND market = %s AND indicator_type = 'MA'
+              AND parameters->>'period' = '5'
+            ORDER BY trade_date ASC
+            LIMIT %s
+        """, (stock_code, market, days))
+        ma5_data = {row['trade_date']: float(row['ma5']) for row in cursor.fetchall()}
+        
+        cursor.execute("""
+            SELECT trade_date, value as ma20
+            FROM technical_indicators
+            WHERE stock_code = %s AND market = %s AND indicator_type = 'MA'
+              AND parameters->>'period' = '20'
+            ORDER BY trade_date ASC
+            LIMIT %s
+        """, (stock_code, market, days))
+        ma20_data = {row['trade_date']: float(row['ma20']) for row in cursor.fetchall()}
+        
+        # ?脣?RSI?豢?
+        cursor.execute("""
+            SELECT trade_date, value as rsi
+            FROM technical_indicators
+            WHERE stock_code = %s AND market = %s AND indicator_type = 'RSI'
+            ORDER BY trade_date ASC
+            LIMIT %s
+        """, (stock_code, market, days))
+        rsi_data = {row['trade_date']: float(row['rsi']) for row in cursor.fetchall()}
+        
+        cursor.close()
+        conn.close()
+        
+        signals = []
+        
+        # 暺?鈭文?/甇颱滿鈭文?瑼Ｘ葫
+        dates = sorted(set(ma5_data.keys()) & set(ma20_data.keys()))
+        for i in range(1, len(dates)):
+            prev_date = dates[i-1]
+            curr_date = dates[i]
+            
+            ma5_prev = ma5_data[prev_date]
+            ma5_curr = ma5_data[curr_date]
+            ma20_prev = ma20_data[prev_date]
+            ma20_curr = ma20_data[curr_date]
+            
+            # 暺?鈭文?嚗A5銝忽MA20
+            if ma5_prev <= ma20_prev and ma5_curr > ma20_curr:
+                signals.append({
+                    'date': str(curr_date),
+                    'type': 'golden_cross',
+                    'description': 'MA5銝忽MA20',
+                    'action': 'buy',
+                    'position': 'belowBar'
+                })
+            
+            # 甇颱滿鈭文?嚗A5銝忽MA20
+            if ma5_prev >= ma20_prev and ma5_curr < ma20_curr:
+                signals.append({
+                    'date': str(curr_date),
+                    'type': 'death_cross',
+                    'description': 'MA5銝忽MA20',
+                    'action': 'sell',
+                    'position': 'aboveBar'
+                })
+        
+        # RSI頞眺頞都瑼Ｘ葫
+        for date, rsi in rsi_data.items():
+            if rsi >= 70:
+                signals.append({
+                    'date': str(date),
+                    'type': 'rsi_overbought',
+                    'description': f'RSI頞眺 ({rsi:.1f})',
+                    'action': 'sell',
+                    'position': 'aboveBar'
+                })
+            elif rsi <= 30:
+                signals.append({
+                    'date': str(date),
+                    'type': 'rsi_oversold',
+                    'description': f'RSI頞都 ({rsi:.1f})',
+                    'action': 'buy',
+                    'position': 'belowBar'
+                })
+        
+        # ???摨?
+        signals.sort(key=lambda x: x['date'])
+        
+        return jsonify({'signals': signals})
+        
+    except Exception as e:
+        print(f"?脣?閮?憭望?: {e}")
+        return jsonify({'error': str(e)}), 500

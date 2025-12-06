@@ -5,7 +5,7 @@ import { createChart } from 'lightweight-charts';
  * TradingView Lightweight Charts 組件
  * 支援 K 線圖、成交量與技術指標疊加
  */
-const TradingViewChart = ({ data, indicators = {}, height = 500 }) => {
+const TradingViewChart = ({ data, indicators = {}, signals = [], height = 500 }) => {
     const chartContainerRef = useRef(null);
     const chartRef = useRef(null);
     const candleSeriesRef = useRef(null);
@@ -83,7 +83,7 @@ const TradingViewChart = ({ data, indicators = {}, height = 500 }) => {
             const volumeData = data.map((d, index) => {
                 const previousClose = index > 0 ? parseFloat(data[index - 1].close) : parseFloat(d.open);
                 const currentClose = parseFloat(d.close);
-                
+
                 return {
                     time: d.time || d.date,
                     value: parseFloat(d.volume),
@@ -102,7 +102,7 @@ const TradingViewChart = ({ data, indicators = {}, height = 500 }) => {
                 title: `MA${indicators.ma.period || ''}`,
             });
             indicatorSeriesRef.current.ma = maSeries;
-            
+
             if (Array.isArray(indicators.ma.data) && indicators.ma.data.length > 0) {
                 maSeries.setData(indicators.ma.data.map(d => ({
                     time: d.time || d.date,
@@ -119,7 +119,7 @@ const TradingViewChart = ({ data, indicators = {}, height = 500 }) => {
                 title: 'RSI',
                 priceScaleId: 'rsi',
                 scaleMargins: {
-                    top: 0.9,
+                    top: 0.8,
                     bottom: 0,
                 },
             });
@@ -131,6 +131,71 @@ const TradingViewChart = ({ data, indicators = {}, height = 500 }) => {
                     value: parseFloat(d.value),
                 })));
             }
+        }
+
+        if (indicators.macd) {
+            // MACD 需要獨立的價格軸
+            const macdSeries = chart.addHistogramSeries({
+                color: '#2962FF',
+                title: 'MACD',
+                priceScaleId: 'macd',
+                scaleMargins: {
+                    top: 0.8,
+                    bottom: 0,
+                },
+            });
+            indicatorSeriesRef.current.macd = macdSeries;
+
+            if (Array.isArray(indicators.macd.data) && indicators.macd.data.length > 0) {
+                macdSeries.setData(indicators.macd.data.map(d => ({
+                    time: d.time || d.date,
+                    value: parseFloat(d.value), // Histogram value
+                    color: parseFloat(d.value) >= 0 ? '#26a69a' : '#ef5350',
+                })));
+            }
+        }
+
+        if (indicators.bollinger) {
+            // 布林通道疊加在主圖
+            const upperSeries = chart.addLineSeries({
+                color: 'rgba(4, 111, 232, 0.5)',
+                lineWidth: 1,
+                title: 'BB Upper',
+            });
+            const lowerSeries = chart.addLineSeries({
+                color: 'rgba(4, 111, 232, 0.5)',
+                lineWidth: 1,
+                title: 'BB Lower',
+            });
+
+            indicatorSeriesRef.current.bollingerUpper = upperSeries;
+            indicatorSeriesRef.current.bollingerLower = lowerSeries;
+
+            if (Array.isArray(indicators.bollinger.data) && indicators.bollinger.data.length > 0) {
+                upperSeries.setData(indicators.bollinger.data.map(d => ({
+                    time: d.time || d.date,
+                    value: parseFloat(d.upper),
+                })));
+                lowerSeries.setData(indicators.bollinger.data.map(d => ({
+                    time: d.time || d.date,
+                    value: parseFloat(d.lower),
+                })));
+            }
+        }
+
+        // 渲染訊號標記 (Markers)
+        if (signals && signals.length > 0) {
+            const markers = signals.map(signal => ({
+                time: signal.date,
+                position: signal.position || (signal.action === 'buy' ? 'belowBar' : 'aboveBar'),
+                color: signal.action === 'buy' ? '#26a69a' : '#ef5350',
+                shape: signal.action === 'buy' ? 'arrowUp' : 'arrowDown',
+                text: signal.description,
+                size: 1, // default size
+            }));
+            candleSeries.setMarkers(markers);
+        } else {
+            candleSeries.setMarkers([]);
         }
 
         // 響應式調整
@@ -155,11 +220,11 @@ const TradingViewChart = ({ data, indicators = {}, height = 500 }) => {
                 chartRef.current = null;
             }
         };
-    }, [data, indicators, height]);
+    }, [data, indicators, signals, height]);
 
     return (
-        <div 
-            ref={chartContainerRef} 
+        <div
+            ref={chartContainerRef}
             className="w-full rounded-lg bg-gray-800/50"
             style={{ height: `${height}px` }}
         />

@@ -1,157 +1,61 @@
 """
-技術指標計算器
-
-提供常用技術指標計算功能：
-- MA (移動平均線)
-- EMA (指數移動平均線)
-- MACD
-- RSI
-- 布林通道
-- KD 指標
+技術指標計算器 - Technical Indicators
+計算常用技術指標：RSI, MACD, KD, Williams %R, 布林通道等
 """
-import sys
-from pathlib import Path
 import pandas as pd
 import numpy as np
-from typing import Tuple
-
-sys.path.insert(0, str(Path(__file__).parent.parent))
-
-from loguru import logger
-
+from typing import Dict, Tuple
 
 class TechnicalIndicators:
     """技術指標計算器"""
     
     @staticmethod
-    def calculate_ma(
-        prices: pd.Series,
-        period: int = 20
-    ) -> pd.Series:
+    def calculate_rsi(prices: pd.Series, period: int = 14) -> pd.Series:
         """
-        計算移動平均線 (Moving Average)
+        計算RSI（相對強弱指標）
         
         Args:
             prices: 價格序列
-            period: 期間
-        
+            period: 計算週期（預設14）
+            
         Returns:
-            MA 序列
+            RSI序列 (0-100)
         """
-        return prices.rolling(window=period).mean()
+        delta = prices.diff()
+        gain = (delta.where(delta > 0, 0)).rolling(window=period).mean()
+        loss = (-delta.where(delta < 0, 0)).rolling(window=period).mean()
+        
+        rs = gain / loss
+        rsi = 100 - (100 / (1 + rs))
+        return rsi
     
     @staticmethod
-    def calculate_ema(
-        prices: pd.Series,
-        period: int = 12
-    ) -> pd.Series:
-        """
-        計算指數移動平均線 (Exponential Moving Average)
-        
-        Args:
-            prices: 價格序列
-            period: 期間
-        
-        Returns:
-            EMA 序列
-        """
-        return prices.ewm(span=period, adjust=False).mean()
-    
-    @classmethod
     def calculate_macd(
-        cls,
         prices: pd.Series,
         fast: int = 12,
         slow: int = 26,
         signal: int = 9
     ) -> Tuple[pd.Series, pd.Series, pd.Series]:
         """
-        計算 MACD (Moving Average Convergence Divergence)
+        計算MACD指標
         
         Args:
             prices: 價格序列
-            fast: 快線期間
-            slow: 慢線期間
-            signal: 訊號線期間
-        
+            fast: 快線週期
+            slow: 慢線週期
+            signal: 訊號線週期
+            
         Returns:
-            (MACD, Signal, Histogram)
+            (MACD線, 訊號線, 柱狀圖)
         """
-        # 計算 EMA
-        ema_fast = cls.calculate_ema(prices, fast)
-        ema_slow = cls.calculate_ema(prices, slow)
+        ema_fast = prices.ewm(span=fast, adjust=False).mean()
+        ema_slow = prices.ewm(span=slow, adjust=False).mean()
         
-        # MACD線
         macd_line = ema_fast - ema_slow
-        
-        # 訊號線
         signal_line = macd_line.ewm(span=signal, adjust=False).mean()
-        
-        # 柱狀圖
         histogram = macd_line - signal_line
         
         return macd_line, signal_line, histogram
-    
-    @staticmethod
-    def calculate_rsi(
-        prices: pd.Series,
-        period: int = 14
-    ) -> pd.Series:
-        """
-        計算 RSI (Relative Strength Index)
-        
-        Args:
-            prices: 價格序列
-            period: 期間
-        
-        Returns:
-            RSI 序列
-        """
-        # 計算價格變動
-        delta = prices.diff()
-        
-        # 分離漲跌
-        gain = delta.where(delta > 0, 0)
-        loss = -delta.where(delta < 0, 0)
-        
-        # 計算平均漲跌
-        avg_gain = gain.rolling(window=period).mean()
-        avg_loss = loss.rolling(window=period).mean()
-        
-        # 計算 RS 和 RSI
-        rs = avg_gain / avg_loss
-        rsi = 100 - (100 / (1 + rs))
-        
-        return rsi
-    
-    @staticmethod
-    def calculate_bollinger_bands(
-        prices: pd.Series,
-        period: int = 20,
-        std_dev: int = 2
-    ) -> Tuple[pd.Series, pd.Series, pd.Series]:
-        """
-        計算布林通道 (Bollinger Bands)
-        
-        Args:
-            prices: 價格序列
-            period: 期間
-            std_dev: 標準差倍數
-        
-        Returns:
-            (上軌, 中軌, 下軌)
-        """
-        # 中軌（移動平均）
-        middle_band = prices.rolling(window=period).mean()
-        
-        # 標準差
-        std = prices.rolling(window=period).std()
-        
-        # 上軌和下軌
-        upper_band = middle_band + (std * std_dev)
-        lower_band = middle_band - (std * std_dev)
-        
-        return upper_band, middle_band, lower_band
     
     @staticmethod
     def calculate_kd(
@@ -163,156 +67,187 @@ class TechnicalIndicators:
         d_period: int = 3
     ) -> Tuple[pd.Series, pd.Series]:
         """
-        計算 KD 指標 (Stochastic Oscillator)
+        計算KD隨機指標
         
         Args:
             high: 最高價序列
             low: 最低價序列
             close: 收盤價序列
-            period: 計算期間
-            k_period: K 線平滑期間
-            d_period: D 線平滑期間
-        
+            period: RSV計算週期
+            k_period: K值平滑週期
+            d_period: D值平滑週期
+            
         Returns:
-            (K線, D線)
+            (K值, D值)
         """
-        # 計算最高價和最低價
+        # 計算RSV
         lowest_low = low.rolling(window=period).min()
         highest_high = high.rolling(window=period).max()
+        rsv = (close - lowest_low) / (highest_high - lowest_low) * 100
         
-        # RSV (Raw Stochastic Value)
-        rsv = ((close - lowest_low) / (highest_high - lowest_low)) * 100
+        # 計算K值（RSV的移動平均）
+        k = rsv.ewm(span=k_period, adjust=False).mean()
         
-        # K 線
-        k_line = rsv.ewm(span=k_period, adjust=False).mean()
+        # 計算D值（K值的移動平均）
+        d = k.ewm(span=d_period, adjust=False).mean()
         
-        # D 線
-        d_line = k_line.ewm(span=d_period, adjust=False).mean()
-        
-        return k_line, d_line
+        return k, d
     
     @staticmethod
-    def calculate_atr(
+    def calculate_williams_r(
         high: pd.Series,
         low: pd.Series,
         close: pd.Series,
         period: int = 14
     ) -> pd.Series:
         """
-        計算 ATR (Average True Range)
+        計算威廉指標 (Williams %R)
         
         Args:
             high: 最高價序列
             low: 最低價序列
             close: 收盤價序列
-            period: 期間
-        
+            period: 計算週期
+            
         Returns:
-            ATR 序列
+            Williams %R序列 (-100 to 0)
         """
-        # True Range
-        tr1 = high - low
-        tr2 = abs(high - close.shift())
-        tr3 = abs(low - close.shift())
+        highest_high = high.rolling(window=period).max()
+        lowest_low = low.rolling(window=period).min()
         
-        tr = pd.concat([tr1, tr2, tr3], axis=1).max(axis=1)
-        
-        # ATR
-        atr = tr.rolling(window=period).mean()
-        
-        return atr
+        wr = (highest_high - close) / (highest_high - lowest_low) * -100
+        return wr
     
-    @classmethod
-    def calculate_all_indicators(
-        cls,
-        df: pd.DataFrame
-    ) -> pd.DataFrame:
+    @staticmethod
+    def calculate_bollinger_bands(
+        prices: pd.Series,
+        period: int = 20,
+        std_dev: float = 2.0
+    ) -> Tuple[pd.Series, pd.Series, pd.Series]:
         """
-        計算所有技術指標
+        計算布林通道
         
         Args:
-            df: 包含 OHLCV 的 DataFrame
-        
+            prices: 價格序列
+            period: 移動平均週期
+            std_dev: 標準差倍數
+            
         Returns:
-            包含所有指標的 DataFrame
+            (上軌, 中軌, 下軌)
         """
-        result = df.copy()
+        middle = prices.rolling(window=period).mean()
+        std = prices.rolling(window=period).std()
         
-        close_col = 'adjusted_close' if 'adjusted_close' in df.columns else 'close_price'
-        high_col = 'high_price'
-        low_col = 'low_price'
+        upper = middle + (std * std_dev)
+        lower = middle - (std * std_dev)
         
-        try:
-            # MA
-            result['MA_5'] = cls.calculate_ma(df[close_col], 5)
-            result['MA_10'] = cls.calculate_ma(df[close_col], 10)
-            result['MA_20'] = cls.calculate_ma(df[close_col], 20)
-            result['MA_60'] = cls.calculate_ma(df[close_col], 60)
-            
-            # EMA
-            result['EMA_12'] = cls.calculate_ema(df[close_col], 12)
-            result['EMA_26'] = cls.calculate_ema(df[close_col], 26)
-            
-            # MACD
-            macd, signal, hist = cls.calculate_macd(df[close_col])
-            result['MACD'] = macd
-            result['MACD_Signal'] = signal
-            result['MACD_Hist'] = hist
-            
-            # RSI
-            result['RSI_14'] = cls.calculate_rsi(df[close_col], 14)
-            
-            # 布林通道
-            upper, middle, lower = cls.calculate_bollinger_bands(df[close_col])
-            result['BB_Upper'] = upper
-            result['BB_Middle'] = middle
-            result['BB_Lower'] = lower
-            
-            # KD
-            k, d = cls.calculate_kd(
-                df[high_col],
-                df[low_col],
-                df[close_col]
-            )
-            result['K'] = k
-            result['D'] = d
-            
-            # ATR
-            result['ATR'] = cls.calculate_atr(
-                df[high_col],
-                df[low_col],
-                df[close_col]
-            )
-            
-            logger.success("所有技術指標計算完成")
-            
-        except Exception as e:
-            logger.error(f"計算技術指標失敗：{e}")
-        
-        return result
-
-
-# 測試
-if __name__ == '__main__':
-    # 模擬資料
-    dates = pd.date_range('2024-01-01', '2024-12-31', freq='D')
-    np.random.seed(42)
+        return upper, middle, lower
     
-    df = pd.DataFrame({
-        'trade_date': dates,
-        'close_price': 100 + np.cumsum(np.random.randn(len(dates))),
-        'high_price': 100 + np.cumsum(np.random.randn(len(dates))) + 2,
-        'low_price': 100 + np.cumsum(np.random.randn(len(dates))) - 2,
-        'volume': np.random.randint(1000000, 10000000, len(dates))
+    @staticmethod
+    def calculate_moving_averages(
+        prices: pd.Series,
+        periods: list = [5, 10, 20, 60, 120]
+    ) -> Dict[str, pd.Series]:
+        """
+        計算多週期移動平均
+        
+        Args:
+            prices: 價格序列
+            periods: 週期列表
+            
+        Returns:
+            {'ma5': Series, 'ma10': Series, ...}
+        """
+        mas = {}
+        for period in periods:
+            if len(prices) >= period:
+                mas[f'ma{period}'] = prices.rolling(window=period).mean()
+        return mas
+    
+    @staticmethod
+    def get_signal_interpretation(indicator: str, value: float) -> Dict:
+        """
+        解釋技術指標訊號
+        
+        Args:
+            indicator: 指標名稱 ('rsi', 'macd', 'kd', 'williams')
+            value: 指標數值
+            
+        Returns:
+            {
+                'value': 數值,
+                'signal': 訊號 ('超買'/'偏多'/'中性'/'偏空'/'超賣'),
+                'action': 建議 ('賣出'/'減碼'/'持有'/'加碼'/'買入')
+            }
+        """
+        if indicator == 'rsi':
+            if value >= 80:
+                signal, action = '極度超買', '賣出'
+            elif value >= 70:
+                signal, action = '超買', '減碼'
+            elif value >= 50:
+                signal, action = '偏多', '持有'
+            elif value >= 30:
+                signal, action = '偏空', '持有'
+            elif value >= 20:
+                signal, action = '超賣', '加碼'
+            else:
+                signal, action = '極度超賣', '買入'
+        
+        elif indicator == 'kd':
+            if value >= 80:
+                signal, action = '超買', '減碼'
+            elif value >= 50:
+                signal, action = '偏多', '持有'
+            elif value >= 20:
+                signal, action = '偏空', '持有'
+            else:
+                signal, action = '超賣', '加碼'
+        
+        elif indicator == 'williams':
+            if value >= -20:
+                signal, action = '超買', '減碼'
+            elif value >= -50:
+                signal, action = '偏多', '持有'
+            elif value >= -80:
+                signal, action = '偏空', '持有'
+            else:
+                signal, action = '超賣', '加碼'
+        
+        else:
+            signal, action = '中性', '持有'
+        
+        return {
+            'value': round(value, 2),
+            'signal': signal,
+            'action': action
+        }
+
+# 測試函數
+if __name__ == '__main__':
+    # 生成測試數據
+    np.random.seed(42)
+    test_data = pd.DataFrame({
+        'close': np.cumsum(np.random.randn(100)) + 100,
+        'high': np.cumsum(np.random.randn(100)) + 102,
+        'low': np.cumsum(np.random.randn(100)) + 98
     })
     
-    # 計算所有指標
-    indicators = TechnicalIndicators()
-    result = indicators.calculate_all_indicators(df)
+    calculator = TechnicalIndicators()
     
-    # 顯示結果
-    print("=" * 60)
-    print("技術指標計算測試")
-    print("=" * 60)
-    print(result[['trade_date', 'close_price', 'MA_20', 'RSI_14', 'MACD']].tail(10))
-    print("=" * 60)
+    # 測試RSI
+    rsi = calculator.calculate_rsi(test_data['close'])
+    print("RSI:", rsi.tail(5))
+    
+    # 測試MACD
+    macd, signal, hist = calculator.calculate_macd(test_data['close'])
+    print("\nMACD:", macd.tail(3).values)
+    
+    # 測試KD
+    k, d = calculator.calculate_kd(test_data['high'], test_data['low'], test_data['close'])
+    print("\nKD - K:", k.tail(3).values)
+    print("KD - D:", d.tail(3).values)
+    
+    # 訊號解釋
+    interpretation = calculator.get_signal_interpretation('rsi', rsi.iloc[-1])
+    print("\nRSI訊號解釋:", interpretation)

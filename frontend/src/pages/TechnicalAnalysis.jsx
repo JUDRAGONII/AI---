@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { TrendingUp, Activity, BarChart3 } from 'lucide-react';
+import { Activity, BarChart3 } from 'lucide-react';
 import TradingViewChart from '../components/TradingViewChart';
 
 const TechnicalAnalysis = () => {
@@ -8,8 +8,10 @@ const TechnicalAnalysis = () => {
     const [selectedIndicators, setSelectedIndicators] = useState({ ma: true });
     const [priceData, setPriceData] = useState([]);
     const [indicatorsData, setIndicatorsData] = useState({});
+    const [signals, setSignals] = useState([]);
     const [loading, setLoading] = useState(false);
     const [stats, setStats] = useState(null);
+    const [showIndicatorPanel, setShowIndicatorPanel] = useState(true);
 
     useEffect(() => {
         fetchChartData();
@@ -18,6 +20,7 @@ const TechnicalAnalysis = () => {
     useEffect(() => {
         if (priceData.length > 0) {
             fetchIndicators();
+            fetchSignals();
         }
     }, [selectedIndicators, priceData]);
 
@@ -26,23 +29,21 @@ const TechnicalAnalysis = () => {
 
         setLoading(true);
         try {
-            // 獲取價格數據
-            const priceResponse = await fetch(`http://localhost:5000/api/prices/${stockCode}?market=${market}&limit=100`);
+            const priceResponse = await fetch(`http://localhost:5000/api/prices/${stockCode}?market=${market}&days=100`);
             const priceResult = await priceResponse.json();
 
-            if (priceResult.prices && priceResult.prices.length > 0) {
-                const chartData = priceResult.prices.map(item => ({
-                    time: item.trade_date,
+            if (priceResult.data && priceResult.data.length > 0) {
+                const chartData = priceResult.data.map(item => ({
+                    time: new Date(item.trade_date).toISOString().split('T')[0],
                     open: parseFloat(item.open_price),
                     high: parseFloat(item.high_price),
                     low: parseFloat(item.low_price),
                     close: parseFloat(item.close_price),
                     volume: parseFloat(item.volume || 0),
-                })).reverse();
+                }));
 
                 setPriceData(chartData);
 
-                // 計算統計
                 if (chartData.length > 0) {
                     const closes = chartData.map(d => d.close);
                     setStats({
@@ -64,7 +65,6 @@ const TechnicalAnalysis = () => {
         const indicators = {};
 
         try {
-            // 獲取 MA 數據
             if (selectedIndicators.ma) {
                 const maResponse = await fetch(`http://localhost:5000/api/indicators/${stockCode}/ma?market=${market}&period=20`);
                 const maResult = await maResponse.json();
@@ -73,14 +73,13 @@ const TechnicalAnalysis = () => {
                     indicators.ma = {
                         period: 20,
                         data: maResult.data.map(item => ({
-                            time: item.trade_date,
+                            time: new Date(item.trade_date).toISOString().split('T')[0],
                             value: parseFloat(item.ma),
-                        })).reverse()
+                        }))
                     };
                 }
             }
 
-            // 獲取 RSI 數據
             if (selectedIndicators.rsi) {
                 const rsiResponse = await fetch(`http://localhost:5000/api/indicators/${stockCode}/rsi?market=${market}`);
                 const rsiResult = await rsiResponse.json();
@@ -88,9 +87,41 @@ const TechnicalAnalysis = () => {
                 if (rsiResult.data && rsiResult.data.length > 0) {
                     indicators.rsi = {
                         data: rsiResult.data.map(item => ({
-                            time: item.trade_date,
+                            time: new Date(item.trade_date).toISOString().split('T')[0],
                             value: parseFloat(item.rsi),
-                        })).reverse()
+                        }))
+                    };
+                }
+            }
+
+            if (selectedIndicators.macd) {
+                const macdResponse = await fetch(`http://localhost:5000/api/indicators/${stockCode}/macd?market=${market}`);
+                const macdResult = await macdResponse.json();
+
+                if (macdResult.data && macdResult.data.length > 0) {
+                    indicators.macd = {
+                        data: macdResult.data.map(item => ({
+                            time: new Date(item.trade_date).toISOString().split('T')[0],
+                            value: parseFloat(item.macd),
+                            signal: parseFloat(item.signal),
+                            histogram: parseFloat(item.histogram)
+                        }))
+                    };
+                }
+            }
+
+            if (selectedIndicators.bollinger) {
+                const bbResponse = await fetch(`http://localhost:5000/api/indicators/${stockCode}/bollinger?market=${market}&period=20`);
+                const bbResult = await bbResponse.json();
+
+                if (bbResult.data && bbResult.data.length > 0) {
+                    indicators.bollinger = {
+                        data: bbResult.data.map(item => ({
+                            time: new Date(item.trade_date).toISOString().split('T')[0],
+                            upper: parseFloat(item.upper),
+                            middle: parseFloat(item.middle),
+                            lower: parseFloat(item.lower)
+                        }))
                     };
                 }
             }
@@ -98,6 +129,16 @@ const TechnicalAnalysis = () => {
             setIndicatorsData(indicators);
         } catch (error) {
             console.error('獲取技術指標失敗:', error);
+        }
+    };
+
+    const fetchSignals = async () => {
+        try {
+            const response = await fetch(`http://localhost:5000/api/signals/${stockCode}?market=${market}&days=100`);
+            const data = await response.json();
+            setSignals(data.signals || []);
+        } catch (error) {
+            console.error('獲取訊號失敗:', error);
         }
     };
 
@@ -169,12 +210,30 @@ const TechnicalAnalysis = () => {
                                 RSI
                             </button>
                             <button
+                                onClick={() => toggleIndicator('macd')}
+                                className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${selectedIndicators.macd
+                                    ? 'bg-purple-600 text-white'
+                                    : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300'
+                                    }`}
+                            >
+                                MACD
+                            </button>
+                            <button
+                                onClick={() => toggleIndicator('bollinger')}
+                                className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${selectedIndicators.bollinger
+                                    ? 'bg-cyan-600 text-white'
+                                    : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300'
+                                    }`}
+                            >
+                                布林通道
+                            </button>
+                            <button
                                 onClick={fetchChartData}
                                 disabled={loading}
                                 className="ml-auto px-4 py-1.5 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 flex items-center gap-2"
                             >
                                 <Activity className="w-4 h-4" />
-                                <span>{loading ? '載入中...' : '刷新'}</span>
+                                <span>{loading ? '載入中...' : '查詢'}</span>
                             </button>
                         </div>
                     </div>
@@ -211,6 +270,114 @@ const TechnicalAnalysis = () => {
                 </div>
             )}
 
+            {/* 技術指標面板 & 訊號總覽 */}
+            {stats && showIndicatorPanel && (
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+                    {/* 指標面板 */}
+                    <div className="lg:col-span-2 bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+                        <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-4">📊 技術指標總覽</h3>
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                            {indicatorsData.ma && indicatorsData.ma.length > 0 && (
+                                <div className="border border-blue-200 dark:border-blue-700 bg-blue-50 dark:bg-blue-900/20 rounded-lg p-3">
+                                    <div className="text-xs text-gray-600 dark:text-gray-400 mb-1">MA20</div>
+                                    <div className="text-lg font-bold text-blue-600">
+                                        ${indicatorsData.ma[indicatorsData.ma.length - 1]?.value?.toFixed(2) || '-'}
+                                    </div>
+                                </div>
+                            )}
+                            {indicatorsData.rsi && indicatorsData.rsi.length > 0 && (
+                                <div className={`border rounded-lg p-3 ${indicatorsData.rsi[indicatorsData.rsi.length - 1]?.value >= 70
+                                    ? 'border-red-200 bg-red-50 dark:border-red-700 dark:bg-red-900/20'
+                                    : indicatorsData.rsi[indicatorsData.rsi.length - 1]?.value <= 30
+                                        ? 'border-green-200 bg-green-50 dark:border-green-700 dark:bg-green-900/20'
+                                        : 'border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-800'
+                                    }`}>
+                                    <div className="text-xs text-gray-600 dark:text-gray-400 mb-1">RSI</div>
+                                    <div className={`text-lg font-bold ${indicatorsData.rsi[indicatorsData.rsi.length - 1]?.value >= 70 ? 'text-red-600' :
+                                        indicatorsData.rsi[indicatorsData.rsi.length - 1]?.value <= 30 ? 'text-green-600' :
+                                            'text-gray-900 dark:text-white'
+                                        }`}>
+                                        {indicatorsData.rsi[indicatorsData.rsi.length - 1]?.value?.toFixed(1) || '-'}
+                                        {indicatorsData.rsi[indicatorsData.rsi.length - 1]?.value >= 70 && <span className="text-xs ml-1">(超買)</span>}
+                                        {indicatorsData.rsi[indicatorsData.rsi.length - 1]?.value <= 30 && <span className="text-xs ml-1">(超賣)</span>}
+                                    </div>
+                                </div>
+                            )}
+                            {indicatorsData.macd && indicatorsData.macd.length > 0 && (
+                                <div className="border border-purple-200 dark:border-purple-700 bg-purple-50 dark:bg-purple-900/20 rounded-lg p-3">
+                                    <div className="text-xs text-gray-600 dark:text-gray-400 mb-1">MACD</div>
+                                    <div className={`text-lg font-bold ${indicatorsData.macd[indicatorsData.macd.length - 1]?.value >= 0
+                                        ? 'text-green-600'
+                                        : 'text-red-600'
+                                        }`}>
+                                        {indicatorsData.macd[indicatorsData.macd.length - 1]?.value?.toFixed(2) || '-'}
+                                    </div>
+                                </div>
+                            )}
+                            {indicatorsData.bollinger && indicatorsData.bollinger.length > 0 && (
+                                <div className="border border-cyan-200 dark:border-cyan-700 bg-cyan-50 dark:bg-cyan-900/20 rounded-lg p-3">
+                                    <div className="text-xs text-gray-600 dark:text-gray-400 mb-1">布林寬度</div>
+                                    <div className="text-lg font-bold text-cyan-600">
+                                        {((indicatorsData.bollinger[indicatorsData.bollinger.length - 1]?.upper -
+                                            indicatorsData.bollinger[indicatorsData.bollinger.length - 1]?.lower) || 0).toFixed(2)}
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+
+                    {/* 訊號總覽 */}
+                    <div className="bg-gradient-to-br from-blue-50 to-purple-50 dark:from-gray-800 dark:to-gray-700 rounded-lg shadow p-6 border-2 border-blue-200 dark:border-blue-700">
+                        <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
+                            <Activity className="w-5 h-5 text-blue-600" />
+                            交易訊號
+                        </h3>
+                        <div className="space-y-3">
+                            <div className="flex items-center justify-between p-2 bg-white/50 dark:bg-gray-700/50 rounded">
+                                <span className="text-sm text-gray-600 dark:text-gray-400">總訊號數</span>
+                                <span className="text-xl font-bold text-gray-900 dark:text-white">{signals.length}</span>
+                            </div>
+                            <div className="flex items-center justify-between p-2 bg-green-50 dark:bg-green-900/20 rounded">
+                                <span className="text-sm text-gray-600 dark:text-gray-400">買入訊號</span>
+                                <span className="text-xl font-bold text-green-600">
+                                    {signals.filter(s => s.action === 'buy').length}
+                                </span>
+                            </div>
+                            <div className="flex items-center justify-between p-2 bg-red-50 dark:bg-red-900/20 rounded">
+                                <span className="text-sm text-gray-600 dark:text-gray-400">賣出訊號</span>
+                                <span className="text-xl font-bold text-red-600">
+                                    {signals.filter(s => s.action === 'sell').length}
+                                </span>
+                            </div>
+                            {signals.length > 0 && (
+                                <div className="mt-4 pt-4 border-t border-gray-300 dark:border-gray-600">
+                                    <div className="text-xs text-gray-600 dark:text-gray-400 mb-2">🔔 最新訊號</div>
+                                    <div className={`px-3 py-2 rounded-lg ${signals[signals.length - 1]?.action === 'buy'
+                                        ? 'bg-green-100 dark:bg-green-900/30'
+                                        : 'bg-red-100 dark:bg-red-900/30'
+                                        }`}>
+                                        <div className={`text-sm font-bold ${signals[signals.length - 1]?.action === 'buy'
+                                            ? 'text-green-700 dark:text-green-400'
+                                            : 'text-red-700 dark:text-red-400'
+                                            }`}>
+                                            {signals[signals.length - 1]?.description}
+                                        </div>
+                                        <div className="text-xs text-gray-600 dark:text-gray-400 mt-1">
+                                            📅 {signals[signals.length - 1]?.date}
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+                            {signals.length === 0 && (
+                                <div className="text-center py-4 text-gray-500 dark:text-gray-400 text-sm">
+                                    暫無訊號
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {/* K 線圖表 */}
             <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
                 <div className="flex items-center justify-between mb-4">
@@ -236,6 +403,7 @@ const TechnicalAnalysis = () => {
                     <TradingViewChart
                         data={priceData}
                         indicators={indicatorsData}
+                        signals={signals}
                         height={500}
                     />
                 ) : (

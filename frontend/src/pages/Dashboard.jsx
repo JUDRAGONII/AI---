@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { TrendingUp, TrendingDown, DollarSign, Activity, AlertCircle, Brain, Eye, Wifi } from 'lucide-react';
 import { io } from 'socket.io-client';
+import AIReportsSection from '../components/AIReportsSection';
 
 const Dashboard = () => {
     const [marketData, setMarketData] = useState(null);
@@ -101,59 +102,8 @@ const Dashboard = () => {
                 </div>
             </div>
 
-            {/* AI 智能觀點區塊 */}
-            <div className="bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-900/20 dark:to-purple-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-6">
-                <div className="flex items-center gap-3 mb-4">
-                    <Brain className="w-6 h-6 text-blue-600 dark:text-blue-400" />
-                    <h2 className="text-xl font-bold text-gray-900 dark:text-white">AI 戰略觀點摘要</h2>
-                    <span className={`ml-auto px-3 py-1 rounded-full text-sm font-medium ${aiInsights?.sentiment === 'bullish' ? 'bg-green-100 text-green-700' :
-                        aiInsights?.sentiment === 'bearish' ? 'bg-red-100 text-red-700' :
-                            'bg-gray-100 text-gray-700'
-                        }`}>
-                        {aiInsights?.sentiment === 'bullish' ? '看多' : aiInsights?.sentiment === 'bearish' ? '看空' : '中性'}
-                    </span>
-                </div>
-
-                <p className="text-gray-700 dark:text-gray-300 mb-4 text-lg">💡 {aiInsights?.marketView}</p>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                        <h3 className="font-semibold text-gray-900 dark:text-white mb-3">關鍵洞察</h3>
-                        <ul className="space-y-2">
-                            {aiInsights?.keyPoints.map((point, idx) => (
-                                <li key={idx} className="flex items-start gap-2 text-sm text-gray-600 dark:text-gray-400">
-                                    <span className="text-blue-600 mt-1">•</span>
-                                    <span>{point}</span>
-                                </li>
-                            ))}
-                        </ul>
-                    </div>
-
-                    <div>
-                        <h3 className="font-semibold text-gray-900 dark:text-white mb-3">AI 操作建議</h3>
-                        <div className="space-y-2">
-                            {aiInsights?.recommendations.map((rec, idx) => (
-                                <div key={idx} className="flex items-center justify-between p-2 bg-white dark:bg-gray-800 rounded-lg">
-                                    <div className="flex items-center gap-2">
-                                        <span className={`px-2 py-1 rounded text-xs font-medium ${rec.type === 'buy' ? 'bg-green-100 text-green-700' :
-                                            rec.type === 'sell' ? 'bg-red-100 text-red-700' :
-                                                'bg-yellow-100 text-yellow-700'
-                                            }`}>
-                                            {rec.type === 'buy' ? '買入' : rec.type === 'sell' ? '賣出' : '觀察'}
-                                        </span>
-                                        <span className="font-semibold text-sm">{rec.symbol}</span>
-                                    </div>
-                                    <span className="text-xs text-gray-600 dark:text-gray-400">{rec.reason}</span>
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-                </div>
-
-                <div className="mt-4 text-xs text-gray-500 dark:text-gray-400 text-right">
-                    最後更新：{aiInsights?.lastUpdated}
-                </div>
-            </div>
+            {/* AI 報告中心 */}
+            <AIReportsSection />
 
             {/* 市場關鍵指數 (包含美股四大指數) */}
             <div>
@@ -276,7 +226,7 @@ const Dashboard = () => {
                         <StatItem
                             label="USD/TWD"
                             value={realtimeData?.usd_twd ? realtimeData.usd_twd.toFixed(2) : (marketData?.forex?.usd_twd ? marketData.forex.usd_twd.toFixed(2) : 'N/A')}
-                        />>
+                        />
                         <StatItem label="追蹤貨幣對" value={marketData?.forex?.pairs || '5對'} />
                         <StatItem label="數據筆數" value={marketData?.forex?.count || 665} />
                     </div>

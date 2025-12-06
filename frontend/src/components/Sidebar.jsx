@@ -11,10 +11,12 @@ import {
 const menuItems = [
     // 核心功能
     { icon: LayoutDashboard, label: '儀表板', path: '/', category: '核心' },
-    { icon: BrainCircuit, label: 'AI 洞察', path: '/ai-insights', category: '核心' },
+    { icon: BrainCircuit, label: 'AI統一觀點', path: '/ai-insights', category: '核心' },
     { icon: BarChart3, label: '因子分析', path: '/factors', category: '核心' },
     { icon: Users, label: '大戶同步率', path: '/shareholder', category: '核心' },
     { icon: TrendingUp, label: '技術分析', path: '/technical', category: '核心' },
+    { icon: Activity, label: '深度分析', path: '/depth-analysis', category: '核心' },
+    { icon: Users, label: '籌碼分析', path: '/chips-analysis', category: '核心' },
     { icon: Target, label: '投資組合', path: '/portfolio', category: '核心' },
     { icon: Newspaper, label: '新聞中心', path: '/news', category: '核心' },
 

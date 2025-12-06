@@ -1,7 +1,3 @@
-# ==========================================
-# Git 忽略檔案
-# ==========================================
-
 # Python
 __pycache__/
 *.py[cod]
@@ -23,26 +19,32 @@ wheels/
 *.egg-info/
 .installed.cfg
 *.egg
+MANIFEST
 
-# 虛擬環境
+# Virtual Environment
+env/
 venv/
 ENV/
-env/
-.venv
+env.bak/
+venv.bak/
+.venv/
 
-# 環境變數（包含機密資訊）
+# Node
+node_modules/
+dist/
+.parcel-cache/
+.next/
+out/
+build/
+
+# Environment Variables
 .env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+*.env
 config/.env
-
-# 日誌
-*.log
-logs/
-*.log.*
-
-# 資料庫
-*.db
-*.sqlite
-*.sqlite3
 
 # IDE
 .vscode/
@@ -50,53 +52,54 @@ logs/
 *.swp
 *.swo
 *~
+.project
+.classpath
+.c9/
+*.launch
+.settings/
+*.sublime-workspace
+
+# OS
 .DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
 
-# Jupyter Notebook
-.ipynb_checkpoints
+# Database
+*.db
+*.sqlite
+*.sqlite3
 
-# 測試
+# Logs
+*.log
+logs/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Testing
 .pytest_cache/
 .coverage
 htmlcov/
 .tox/
+coverage/
 
 # Docker
-docker-compose.override.yml
+.dockerignore
 
-# 臨時檔案
+# Temporary files
 *.tmp
-*.bak
-*.orig
+*.temp
+temp/
+tmp/
 
-# 資料檔案（避免誤上傳大檔案）
-*.csv
-*.xlsx
-*.parquet
+# Brain artifacts (Gemini開發記錄，不上傳到GitHub)
+.gemini/
+brain/
 
-# 報告輸出
-reports/
-output/
-
-# ==========================================
-# 前端 (Node.js / React)
-# ==========================================
-frontend/node_modules/
-frontend/dist/
-frontend/build/
-frontend/.next/
-frontend/.cache/
-frontend/.turbo/
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-.pnpm-debug.log*
-package-lock.json
-yarn.lock
-pnpm-lock.yaml
-
-# ==========================================
-# AI模型權重（如果太大）
-# ==========================================
-# models/*.h5
-# models/*.pkl
+# 測試檔案
+test_*.py
+*_test.py

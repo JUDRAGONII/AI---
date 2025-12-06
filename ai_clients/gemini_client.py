@@ -33,7 +33,7 @@ class GeminiClient:
         # 配置 API
         genai.configure(api_key=self.api_key)
         
-        # 使用 Gemini 2.5 Flash 模型 (最新免費版)
+        # 使用 Gemini 2.5 Flash 模型
         self.model = genai.GenerativeModel('gemini-2.5-flash')
         
         # 追蹤使用統計

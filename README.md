@@ -1,319 +1,371 @@
-# AI投資分析儀 (Gemini Quant) v1.0
+# AI 投資分析儀系統
 
-**台美股量化投資決策平台** | 完成度: 100% 🎉
+> 專業級量化投資分析平台，整合AI決策、技術分析、籌碼追蹤、投資組合管理
 
-一個整合AI智能分析、量化因子、技術指標的專業投資工具。基於Google Gemini AI，提供即時市場分析、投資組合管理、策略回測等完整功能。
+[![Python](https://img.shields.io/badge/Python-3.11+-blue.svg)](https://www.python.org/)
+[![React](https://img.shields.io/badge/React-18+-61DAFB.svg)](https://reactjs.org/)
+[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-15-336791.svg)](https://www.postgresql.org/)
+[![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+
+## 📋 目錄
+
+- [功能特色](#功能特色)
+- [系統架構](#系統架構)
+- [快速開始](#快速開始)
+- [API文檔](#api文檔)
+- [開發指南](#開發指南)
+- [常見問題](#常見問題)
 
 ---
 
-## ✨ 核心特色
+## ✨ 功能特色
 
-- 🤖 **AI智能分析** - Gemini API深度整合，自動生成市場分析與投資建議
-- 📊 **量化引擎** - 6大量化因子 + 7種技術指標
-- 💼 **投資組合管理** - 多組合管理、績效追蹤、風險分析
-- 📈 **即時數據** - WebSocket即時推送、Redis快取加速
-- 🎯 **策略回測** - No-Code策略建構、歷史回測驗證
-- 🌓 **精美UI** - Dark Mode、響應式設計、現代化介面
+### 🤖 AI智能分析
+- **六因子評分系統**: 宏觀環境、技術面、籌碼面、基本面、市場情緒、估值水平
+- **統合決策報告**: Gemini AI驅動的深度分析報告
+- **雷達圖視覺化**: 直觀展示多維度評分
+
+### 📊 股價深度分析
+- **位階判斷**: 52週高低點位階分析
+- **趨勢分析**: MA排列、趨勢強度、多空判斷
+- **量價關係**: 價漲量增/價漲量縮/背離檢測
+- **技術指標**: RSI, MACD, KD, Williams, 布林通道
+- **綜合評分**: 0-100分多維度評分系統
+
+### 💰 籌碼追蹤
+- **三大法人**: 外資/投信/自營商買賣超統計
+- **連續天數**: 連續買超/賣超天數追蹤
+- **融資融券**: 使用率、資券比、風險警示
+- **主導力量**: 自動判斷籌碼主導方
+
+### 📈 投資組合管理
+- **持倉管理**: 新增/刪除/查詢持倉
+- **績效計算**: 即時損益、報酬率統計
+- **交易記錄**: 完整交易歷史追蹤
+- **費用計算**: 自動計算手續費與證交稅
+
+### 📰 技術分析中心
+- **K線圖表**: TradingView風格圖表
+- **訊號標註**: 黃金交叉/死亡交叉/RSI超買超賣
+- **指標面板**: MA20, RSI, MACD即時數值
+- **歷史回測**: 訊號準確度追蹤
+
+### ⚙️ 自動化系統
+- **N8N工作流**: 台股/美股數據自動更新
+- **定時報告**: AI報告自動生成
+- **智慧警報**: 多條件監控觸發
 
 ---
 
-## 📊 系統狀態
+## 🏗️ 系統架構
 
-| 項目 | 狀態 | 數量/完成度 |
-|------|------|------------|
-| 資料庫表格 | ✅ | 24個 |
-| API端點 | ✅ | 17個(14基礎+3AI) |
-| 前端頁面 | ✅ | 43個 |
-| 市場數據 | ✅ | 57,465筆 |
-| 台股數據 | ✅ | 138支，30,544筆 |
-| 美股數據 | ✅ | 100支，25,001筆 |
-| 技術指標 | ✅ | 7種 |
-| 量化因子 | ✅ | 6大類 |
-| 系統完成度 | ✅ | 100% |
+### 技術棧
+
+**後端**
+- Framework: Flask 3.1.2
+- Database: PostgreSQL 15
+- AI Model: Google Gemini 2.5 Flash
+- Data Processing: pandas, numpy
+- WebSocket: Flask-SocketIO
+
+**前端**
+- Framework: React 18 + Vite
+- UI: TailwindCSS + Lucide Icons
+- Charts: Recharts
+- Routing: React Router v6
+- State: React Hooks
+
+**基礎設施**
+- Container: Docker Desktop
+- Automation: N8N
+- Version Control: Git
+
+### 專案結構
+
+```
+台股美股金融資料庫/
+├── calculators/              # 分析計算器模組
+│   ├── position_analyzer.py  # 位階分析
+│   ├── technical_indicators.py # 技術指標
+│   ├── institutional_analyzer.py # 三大法人
+│   └── margin_analyzer.py    # 融資融券
+├── api_server_v5.py          # 主API伺服器
+├── chips_api.py              # 籌碼分析API
+├── portfolio_api.py          # 投資組合API
+├── transaction_api.py        # 交易API
+├── signals_api.py            # 訊號API
+├── frontend/                 # 前端應用
+│   ├── src/
+│   │   ├── pages/           # 頁面組件
+│   │   └── components/      # 共用組件
+│   └── package.json
+├── database/                 # 資料庫schema
+├── config/                   # 環境配置
+└── n8n_config/              # N8N配置
+```
 
 ---
 
 ## 🚀 快速開始
 
 ### 環境需求
-- Python 3.8+
-- Node.js 16+
-- Docker & Docker Compose
-- PostgreSQL 15
 
-### 1. 克隆專案
+- **Python**: 3.11+
+- **Node.js**: 20+
+- **Docker Desktop**: 最新版
+- **PostgreSQL**: 15 (透過Docker)
+
+### 安裝步驟
+
+#### 1. 資料庫啟動
+
 ```bash
-git clone https://github.com/your-repo/gemini-quant.git
-cd gemini-quant
+# 啟動PostgreSQL容器
+docker start quant_postgres
+
+# 如果容器不存在，建立新容器
+docker run --name quant_postgres \
+  -e POSTGRES_PASSWORD=postgres \
+  -e POSTGRES_DB=quant_db \
+  -p 15432:5432 \
+  -d postgres:15
 ```
 
-### 2. 啟動Docker資料庫
-```bash
-docker-compose up -d
-```
+#### 2. 後端設定
 
-### 3. 後端設置
 ```bash
 # 安裝Python依賴
 pip install -r requirements.txt
 
-# 設置環境變數（複製.env.example到config/.env並填入API金鑰）
+# 設定環境變數
 cp config/.env.example config/.env
+# 編輯 config/.env 填入 GEMINI_API_KEY
 
-# 啟動API服務器
-python api_server_v3.py
+# 啟動API Server
+python api_server_v5.py
 ```
 
-### 4. 前端設置
+#### 3. 前端設定
+
 ```bash
+# 進入前端目錄
 cd frontend
+
+# 安裝依賴
 npm install
+
+# 啟動開發伺服器
 npm run dev
 ```
 
-### 5. 訪問系統
-- **前端**: http://localhost:5174
+#### 4. 訪問系統
+
+- **前端**: http://localhost:5173
 - **API**: http://localhost:5000
-- **WebSocket**: http://localhost:5001
-- **pgAdmin**: http://localhost:15050
+- **API文檔**: http://localhost:5000/api/health
 
 ---
 
-## 📂 專案結構
+## 📡 API文檔
 
-```
-├── api_server_v3.py           # API服務器 (Flask)
-├── websocket_server.py        # WebSocket即時推送
-├── calculators/               # 量化計算引擎
-│   ├── indicators.py          # 技術指標 (MA/RSI/MACD/Bollinger/KD/ATR)
-│   └── factors.py             # 量化因子 (價值/品質/動能/成長/規模/波動)
-├── ai_clients/                # AI整合
-│   └── gemini_client.py       # Gemini API客戶端
-├── scripts/                   # 數據同步腳本
-│   ├── massive_data_sync.py   # 大規模數據同步
-│   ├── generate_ai_reports.py # AI報告生成
-│   └── sync_tdcc_shareholder.py # TDCC大戶持股同步
-├── utils/                     # 工具模組
-│   └── cache.py               # Redis快取管理
-├── database/                  # 資料庫
-│   └── schema.sql             # Schema定義 (24表)
-├── frontend/                  # React前端
-│   ├── src/
-│   │   ├── pages/             # 43個功能頁面
-│   │   ├── components/        # React組件
-│   │   └── services/          # API服務層
-│   └── package.json
-├── tests/                     # 測試
-│   └── system_test.py         # 系統完整性測試
-└── docker-compose.yml         # Docker配置
+### 系統管理
+
+#### 健康檢查
+```http
+GET /api/health
 ```
 
----
-
-## 🔌 API端點
-
-### 基礎端點
-- `GET /api/health` - 健康檢查
-- `GET /api/stocks/list` - 股票列表 (台股/美股)
-- `GET /api/stocks/<code>` - 股票詳情
-- `GET /api/prices/<code>` - 價格歷史
-
-### 技術指標
-- `GET /api/indicators/<code>/ma` - 移動平均
-- `GET /api/indicators/<code>/rsi` - RSI指標
-- `GET /api/indicators/<code>/macd` - MACD
-- `GET /api/indicators/<code>/bollinger` - 布林通道
-
-### 市場數據
-- `GET /api/commodity/<code>` - 商品價格 (黃金/白銀/原油)
-- `GET /api/forex/<pair>` - 匯率數據
-- `GET /api/market/summary` - 市場總覽
-
-### AI分析
-- `GET /api/ai/test-connection` - AI連接測試
-- `POST /api/ai/analyze-stock/<code>` - 個股AI分析
-- `POST /api/ai/market-report` - 市場分析報告
-
-更多詳情請見 [API 文檔](./README_API_v2.5.md)
-
----
-
-## 🎨 主要功能頁面
-
-### 第一層：核心基礎
-1. **Dashboard** - 投資指揮中心（含黃金與匯率統計）
-2. **MarketOverview** - 市場總覽
-3. **StockListTW/US** - 台美股列表
-4. **PortfolioManagement** - 投資組合管理
-5. **TransactionLog** - 交易日誌
-
-### 第二層：洞察分析
-6. **AIHouseView** - AI統一觀點（市場分析報告）
-7. **TechnicalAnalysis** - 技術分析中心
-8. **FactorDashboard** - 因子投資儀表板
-9. **DynamicIntelligence** - 動態情報儀表板
-
-### 第三層：決策輔助
-10. **AIPortfolioStrategy** - AI投資組合策略
-11. **PortfolioOptimization** - 投資組合優化
-12. **StrategyBacktesting** - 策略回測實驗室
-13. **PortfolioStressTesting** - 壓力測試
-14. **SimilarAssetsFinder** - 相似資產發現器
-
-### 第四層：紀律與成長
-15. **InvestmentGoals** - 投資目標設定
-16. **StrategyTracker** - 策略績效追蹤
-17. **BehavioralCoach** - AI行為金融教練
-
-完整清單共43個頁面
-
----
-
-## 🧪 測試
-
-### 執行系統測試
-```bash
-python tests/system_test.py
+**回應範例**:
+```json
+{
+  "status": "healthy",
+  "version": "v5.0-深度分析版",
+  "database": "connected",
+  "features": ["depth_analysis", "chips_analysis", "ai_reports"]
+}
 ```
 
-測試項目：
-- ✅資料庫連接
-- ✅ 17個API端點
-- ✅ AI功能連接
-- ✅ 數據完整性
+### 股價深度分析
 
----
-
-## 📦 數據同步
-
-### 大規模數據同步
-```bash
-python scripts/massive_data_sync.py
+#### 完整深度分析
+```http
+GET /api/analysis/depth/{stock_code}?market=tw
 ```
 
-### TDCC大戶持股同步
-```bash
-# 同步所有股票
-python scripts/sync_tdcc_shareholder.py sync
+**參數**:
+- `stock_code`: 股票代碼 (例: 2330)
+- `market`: tw (台股) 或 us (美股)
 
-# 測試單一股票
-python scripts/sync_tdcc_shareholder.py test 2330
-
-# 計算大戶同步率
-python scripts/sync_tdcc_shareholder.py ratio 2330
+**回應範例**:
+```json
+{
+  "stock_code": "2330",
+  "position_analysis": {
+    "current_price": 589.0,
+    "level": "中檔區",
+    "percentile_52w": 49.8
+  },
+  "trend_analysis": {
+    "trend": "上升趨勢",
+    "ma_alignment": "偏多",
+    "strength": 68.5
+  },
+  "comprehensive_judgment": {
+    "recommendation": "偏多持有",
+    "score": 62.5,
+    "confidence": "中"
+  }
+}
 ```
 
-### AI報告生成
-```bash
-# 生成市場分析報告
-python scripts/generate_ai_reports.py market
+### 籌碼分析
 
-# 生成個股分析報告
-python scripts/generate_ai_reports.py stock 2330
+#### 三大法人分析
+```http
+GET /api/chips/{stock_code}/institutional?days=20
+```
+
+#### 融資融券分析
+```http
+GET /api/chips/{stock_code}/margin
+```
+
+#### 完整籌碼分析
+```http
+GET /api/chips/{stock_code}/all
+```
+
+### AI報告
+
+#### 獲取報告列表
+```http
+GET /api/ai-reports?type=unified_decision&limit=30
 ```
 
 ---
 
-## 🛠️ 技術棧
+## 🛠️ 開發指南
 
-### 後端
-- **Framework**: Flask 3.0
-- **Database**: PostgreSQL 15
-- **Cache**: Redis 7.0
-- **WebSocket**: Flask-SocketIO
-- **AI**: Google Gemini API
+### 添加新計算器
 
-### 前端
-- **Framework**: React 18 + Vite
-- **Router**: React Router v6
-- **Styling**: Tailwind CSS
-- **Charts**: Recharts
-- **Icons**: Lucide React
+1. 在 `calculators/` 目錄建立新檔案
+2. 實作計算邏輯
+3. 更新 `calculators/__init__.py`
+4. 撰寫單元測試
 
-### 數據源
-- **台股**: TWSE OpenAPI
-- **美股**: yfinance
-- **TDCC**: TDCC OpenAPI
-- **商品/匯率**: yfinance
-
----
-
-## 📈 數據統計
-
-- **資料表**: 24個
-- **總數據量**: 57,465筆
-- **台股**: 138支股票，30,544筆價格數據
-- **美股**: 100支股票，25,001筆價格數據
-- **商品**: 5種（黃金/白銀/原油/銅/天然氣），1,255筆
-- **匯率**: 5對（USD/TWD/EUR/JPY/GBP/CNY），665筆
-- **技術指標**: 7種
-- **量化因子**: 6大類
-
----
-
-## 🔐 環境變數配置
-
-在 `config/.env` 設置以下變數：
-
-```env
-# 資料庫
-DB_HOST=localhost
-DB_PORT=15432
-DB_NAME=quant_db
-DB_USER=postgres
-DB_PASSWORD=postgres
-
-# API Port
-API_PORT=5000
-
-# Google AI API Key
-GOOGLE_AI_API_KEY=your_gemini_api_key_here
-
-# Redis (可選)
-REDIS_HOST=localhost
-REDIS_PORT=6379
+範例:
+```python
+# calculators/my_analyzer.py
+class MyAnalyzer:
+    @staticmethod
+    def analyze(data):
+        # 分析邏輯
+        return result
 ```
 
+### 添加新API端點
+
+1. 建立Blueprint檔案 (例: `my_api.py`)
+2. 定義路由與處理函數
+3. 在 `api_server_v5.py` 註冊Blueprint
+
+範例:
+```python
+# my_api.py
+from flask import Blueprint
+my_api = Blueprint('my_api', __name__)
+
+@my_api.route('/api/my-endpoint')
+def my_endpoint():
+    return jsonify({'data': 'value'})
+
+# api_server_v5.py
+from my_api import my_api
+app.register_blueprint(my_api)
+```
+
+### 添加新前端頁面
+
+1. 在 `frontend/src/pages/` 建立組件
+2. 在 `App.jsx` 添加路由
+3. 在 `Sidebar.jsx` 添加菜單項
+
 ---
 
-## 📝 版本歷史
+## ❓ 常見問題
 
-### v1.0.0 (2025-11-30) 🎉
-- ✅ 核心功能100%完成
-- ✅ 43個前端頁面
-- ✅ 17個API端點
-- ✅ AI功能完整整合
-- ✅ WebSocket即時推送
-- ✅ Redis快取加速
-- ✅ TDCC大戶持股同步
-- ✅ 系統測試腳本
+### Q: API返回404錯誤？
+A: 確認API Server已啟動，並檢查端點路徑是否正確。使用 `/api/health` 測試連接。
 
----
+### Q: 前端無法連接後端？
+A: 檢查 `frontend/src/services/api.js` 的API_BASE_URL設定。
 
-## 🤝 貢獻
+### Q: 資料庫連接失敗？
+A: 確認PostgreSQL容器運行中 (`docker ps`)，並檢查 `config/.env` 的資料庫配置。
 
-歡迎提交Issue或Pull Request！
+### Q: AI報告生成失敗？
+A: 檢查 `GEMINI_API_KEY` 是否正確設定，並確認API額度未超限。
 
 ---
 
-## 📄 授權
+## 📊 系統狀態
 
-MIT License
+### 功能完成度
+
+| 模組 | 完成度 | 狀態 |
+|------|--------|------|
+| Dashboard | 100% | ✅ |
+| 投資組合管理 | 100% | ✅ |
+| 交易日誌 | 100% | ✅ |
+| 技術分析 | 100% | ✅ |
+| AI統一觀點 | 100% | ✅ |
+| 深度分析 | 100% | ✅ |
+| 籌碼分析 | 50% | 🟡 |
+| 對話式AI | 0% | ⏳ |
+
+**總體完成度**: 49%
+
+### API端點統計
+- **運行中**: 18個
+- **開發中**: 5個
+- **計畫中**: 12個
 
 ---
 
-## 👨‍💻 開發者
+## 🤝 貢獻指南
 
-開發者: AI Agent (Gemini 2.5 Flash Thinking)  
-專案: AI投資分析儀 (Gemini Quant)  
-完成日期: 2025-11-30
+歡迎提交Issue和Pull Request！
+
+### 開發流程
+1. Fork專案
+2. 建立功能分支 (`git checkout -b feature/amazing-feature`)
+3. 提交變更 (`git commit -m 'Add amazing feature'`)
+4. 推送到分支 (`git push origin feature/amazing-feature`)
+5. 開啟Pull Request
+
+---
+
+## 📄 授權條款
+
+MIT License - 詳見 [LICENSE](LICENSE) 檔案
+
+---
+
+## 🙏 致謝
+
+- **AI Model**: Google Gemini 2.5 Flash
+- **數據來源**: Yahoo Finance, 台灣證券交易所
+- **UI靈感**: TradingView, Bloomberg Terminal
 
 ---
 
 ## 📞 聯絡方式
 
-如有問題請開Issue或聯絡專案維護者。
+- **專案Repository**: [GitHub連結]
+- **問題回報**: [Issues](../../issues)
+- **功能建議**: [Discussions](../../discussions)
 
 ---
 
-**⚠️ 免責聲明**: 本系統僅供學習與研究使用，不構成任何投資建議。投資有風險，決策需謹慎。
+**最後更新**: 2025-12-05  
+**版本**: v1.0.0 (Beta)

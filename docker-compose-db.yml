@@ -1,0 +1,32 @@
+version: '3.8'
+
+name: quant_db
+
+services:
+  quant_db_v2:
+    image: postgres:15
+    container_name: quant_postgres_v2
+    restart: unless-stopped
+    ports:
+      - "5433:5432" # 使用 5433 避免與舊容器衝突
+    environment:
+      POSTGRES_DB: quant_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      PGDATA: /var/lib/postgresql/data/pgdata
+    volumes:
+      - postgres_v2_data:/var/lib/postgresql/data
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U postgres" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - quant_network
+
+networks:
+  quant_network:
+    driver: bridge
+
+volumes:
+  postgres_v2_data:

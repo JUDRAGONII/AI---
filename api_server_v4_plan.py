@@ -14,9 +14,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
 from calculators.indicators import TechnicalIndicators
-from calculators.factors import FactorCalcul
-
-ator
+from calculators.factors import FactorCalculator
 
 load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), 'config', '.env'))
 

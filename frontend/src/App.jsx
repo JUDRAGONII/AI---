@@ -7,6 +7,7 @@ import ShareholderAnalysis from './pages/ShareholderAnalysis'
 import FactorDashboard from './pages/FactorDashboard'
 import AIInsights from './pages/AIInsights'
 import TechnicalAnalysis from './pages/TechnicalAnalysis'
+import Portfolio from './pages/Portfolio'  // 新的投資組合頁面
 import PortfolioManagement from './pages/PortfolioManagement'
 import NewsManagement from './pages/NewsManagement'
 import Settings from './pages/Settings'
@@ -18,7 +19,7 @@ import AIChatAnalyst from './pages/AIChatAnalyst'
 import SimilarAssetsFinder from './pages/SimilarAssetsFinder'
 import SmartAlertSystem from './pages/SmartAlertSystem'
 import PortfolioDetails from './pages/PortfolioDetails'
-import TransactionLog from './pages/TransactionLog'
+import TransactionLog from './pages/TransactionLog'  // 交易日誌
 import AccountManagement from './pages/AccountManagement'
 import APIManagement from './pages/APIManagement'
 import ReportCenter from './pages/ReportCenter'
@@ -38,6 +39,10 @@ import StockListTW from './pages/StockListTW'
 import StockListUS from './pages/StockListUS'
 import StockDetailDemo from './pages/StockDetailDemo'
 import MarketOverview from './pages/MarketOverview'
+import DepthAnalysis from './pages/DepthAnalysis'  // 股價深度分析
+import ChipsAnalysis from './pages/ChipsAnalysis'  // 籌碼分析
+import MacroEconomyView from './pages/MacroEconomyView'  // 宏觀經濟
+import MarketPulse from './pages/MarketPulse'  // 市場脈搏
 
 // 佔位符頁面（未來實作）
 const ComingSoon = ({ title }) => (
@@ -72,6 +77,7 @@ function App() {
             <Route path="ai-chat" element={<AIChatAnalyst />} />
             <Route path="similar-assets" element={<SimilarAssetsFinder />} />
             <Route path="alerts" element={<SmartAlertSystem />} />
+            <Route path="portfolio-detail" element={<Portfolio />} />  {/* 投資組合明細 */}
             <Route path="portfolio-details" element={<PortfolioDetails />} />
             <Route path="transactions" element={<TransactionLog />} />
             <Route path="account" element={<AccountManagement />} />
@@ -93,6 +99,10 @@ function App() {
             <Route path="stock-list-us" element={<StockListUS />} />
             <Route path="stock/:code" element={<StockDetailDemo />} />
             <Route path="market-overview" element={<MarketOverview />} />
+            <Route path="depth-analysis" element={<DepthAnalysis />} />
+            <Route path="chips-analysis" element={<ChipsAnalysis />} />
+            <Route path="macro-economy" element={<MacroEconomyView />} />
+            <Route path="market-pulse" element={<MarketPulse />} />
           </Route>
         </Routes>
       </BrowserRouter>
