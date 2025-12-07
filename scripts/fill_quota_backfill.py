@@ -14,11 +14,8 @@ project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
 from data_loader import DatabaseConnector
-try:
-    from generate_unified_decision import generate_unified_decision_report
-except ImportError:
-    logger.error("無法導入報告生成模組")
-    sys.exit(1)
+from data_loader import DatabaseConnector
+from generate_unified_decision import generate_stock_decision_report as generate_unified_decision_report
 
 def fill_quota_backfill():
     logger.info("🚀 開始執行數據回補任務 (消耗剩餘額度)...")

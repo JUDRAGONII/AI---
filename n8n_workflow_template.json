@@ -1,0 +1,144 @@
+{
+    "name": "AI 投資分析儀自動化",
+    "nodes": [
+        {
+            "parameters": {
+                "rule": {
+                    "interval": [
+                        {
+                            "field": "cronExpression",
+                            "expression": "30 14 * * 1-5"
+                        }
+                    ]
+                }
+            },
+            "id": "trigger-tw",
+            "name": "Cron (TW Close)",
+            "type": "n8n-nodes-base.cron",
+            "typeVersion": 1,
+            "position": [
+                100,
+                300
+            ]
+        },
+        {
+            "parameters": {
+                "command": "\"C:/Users/GV72/AppData/Local/Programs/Python/Python311/python.exe\" \"C:/Users/GV72/Desktop/私人事務/APP/台股美股金融資料庫/scripts/n8n/update_tw_market_data.py\""
+            },
+            "id": "cmd-tw",
+            "name": "Update TW Market",
+            "type": "n8n-nodes-base.executeCommand",
+            "typeVersion": 1,
+            "position": [
+                300,
+                300
+            ]
+        },
+        {
+            "parameters": {
+                "rule": {
+                    "interval": [
+                        {
+                            "field": "cronExpression",
+                            "expression": "0 6 * * 2-6"
+                        }
+                    ]
+                }
+            },
+            "id": "trigger-us",
+            "name": "Cron (US Close)",
+            "type": "n8n-nodes-base.cron",
+            "typeVersion": 1,
+            "position": [
+                100,
+                500
+            ]
+        },
+        {
+            "parameters": {
+                "command": "\"C:/Users/GV72/AppData/Local/Programs/Python/Python311/python.exe\" \"C:/Users/GV72/Desktop/私人事務/APP/台股美股金融資料庫/scripts/n8n/update_us_market_data.py\""
+            },
+            "id": "cmd-us",
+            "name": "Update US Market",
+            "type": "n8n-nodes-base.executeCommand",
+            "typeVersion": 1,
+            "position": [
+                300,
+                500
+            ]
+        },
+        {
+            "parameters": {
+                "rule": {
+                    "interval": [
+                        {
+                            "field": "cronExpression",
+                            "expression": "30 15 * * 1-5"
+                        }
+                    ]
+                }
+            },
+            "id": "trigger-report",
+            "name": "Cron (Daily Report)",
+            "type": "n8n-nodes-base.cron",
+            "typeVersion": 1,
+            "position": [
+                100,
+                700
+            ]
+        },
+        {
+            "parameters": {
+                "command": "\"C:/Users/GV72/AppData/Local/Programs/Python/Python311/python.exe\" \"C:/Users/GV72/Desktop/私人事務/APP/台股美股金融資料庫/scripts/n8n/trigger_daily_report.py\""
+            },
+            "id": "cmd-report",
+            "name": "Generate AI Report",
+            "type": "n8n-nodes-base.executeCommand",
+            "typeVersion": 1,
+            "position": [
+                300,
+                700
+            ]
+        }
+    ],
+    "connections": {
+        "Cron (TW Close)": {
+            "main": [
+                [
+                    {
+                        "node": "Update TW Market",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Cron (US Close)": {
+            "main": [
+                [
+                    {
+                        "node": "Update US Market",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Cron (Daily Report)": {
+            "main": [
+                [
+                    {
+                        "node": "Generate AI Report",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        }
+    },
+    "settings": {
+        "executionOrder": "v1"
+    },
+    "staticData": null,
+    "pinData": {}
+}

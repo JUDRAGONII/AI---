@@ -27,7 +27,10 @@ from macro_api import macro_bp
 # 導入週期與情緒API
 from cycle_sentiment_api import cycle_sentiment_bp
 # 導入進階量化分析API
+# 導入進階量化分析API
 from quant_api import quant_bp
+# 導入稅務API
+from tax_api import tax_api
 
 load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), 'config', '.env'))
 
@@ -38,12 +41,8 @@ CORS(app)
 app.register_blueprint(chips_api)
 app.register_blueprint(macro_bp)
 app.register_blueprint(cycle_sentiment_bp)
-app.register_blueprint(quant_bp, url_prefix='/api') # 注意：quant_api 內部路由已經包含 /api/quant，所以這裡是否需要 prefix? 
-# 檢查 quant_api.py 路由定義：@quant_bp.route('/api/quant/monte-carlo')
-# Flask blueprint 如果註冊時有 url_prefix，則路由會疊加。如果這裡不加 prefix，則保持原樣。
-# 通常為了乾淨，且 quant_api 內部已經完整定義，這裡不加 prefix 或者加空 prefix。
-# 為了避免路徑混淆，這裡直接註冊，不加額外 prefix，因為 blueprints 內已經包含完整路徑。
 app.register_blueprint(quant_bp)
+app.register_blueprint(tax_api, url_prefix='/api/tax')
 
 def get_db():
     return psycopg2.connect(
@@ -55,6 +54,61 @@ def get_db():
     )
 
 # ========== 健康檢查 ==========
+@app.route('/api/market/summary', methods=['GET'])
+def market_summary():
+    """獲取市場數據庫狀態總覽"""
+    try:
+        conn = get_db()
+        cursor = conn.cursor()
+        
+        # 定義要檢查的表
+        queries = {
+            'tw_prices': "SELECT COUNT(*) FROM tw_stock_prices",
+            'us_prices': "SELECT COUNT(*) FROM us_stock_prices",
+            'gold': "SELECT COUNT(*) FROM commodities WHERE type='gold'", # 假設表結構
+            'forex': "SELECT COUNT(*) FROM exchange_rates"
+        }
+        
+        stats = {
+            'stocks': {'tw_prices': 0, 'us_prices': 0},
+            'gold': {'count': 0},
+            'forex': {'count': 0},
+            'status': 'online'
+        }
+        
+        # 執行查詢
+        try:
+            cursor.execute(queries['tw_prices'])
+            stats['stocks']['tw_prices'] = cursor.fetchone()[0]
+        except: pass
+
+        try:
+            cursor.execute(queries['us_prices'])
+            stats['stocks']['us_prices'] = cursor.fetchone()[0]
+        except: pass
+        
+        try:
+            # 檢查表是否存在
+            cursor.execute("SELECT to_regclass('commodities')")
+            if cursor.fetchone()[0]:
+                cursor.execute("SELECT COUNT(*) FROM commodities")
+                stats['gold']['count'] = cursor.fetchone()[0]
+        except: pass
+
+        try:
+            cursor.execute("SELECT to_regclass('exchange_rates')")
+            if cursor.fetchone()[0]:
+                cursor.execute(queries['forex'])
+                stats['forex']['count'] = cursor.fetchone()[0]
+        except: pass
+
+        cursor.close()
+        conn.close()
+        
+        return jsonify(stats)
+    except Exception as e:
+        return jsonify({'status': 'error', 'error': str(e)}), 500
+
 @app.route('/api/health', methods=['GET'])
 def health():
     """API健康檢查"""

@@ -93,6 +93,12 @@ export const api = {
 
     // 健康檢查
     health: () => `${API_BASE_URL}/health`,
+
+    // 稅務試算 - 新增
+    tax: {
+        calculateTransaction: () => `${API_BASE_URL}/tax/calculate_transaction`,
+        simulateDividend: () => `${API_BASE_URL}/tax/simulate_dividend`,
+    },
 };
 
 // HTTP客戶端封裝

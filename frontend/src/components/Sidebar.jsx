@@ -5,7 +5,7 @@ import {
     Target, BrainCircuit, ChevronLeft, Database, Sparkles, Activity,
     Shield, Goal, MessageSquare, Search, Bell, FileText, Calendar,
     Zap, TrendingDown, Brain, Gauge, HelpCircle, Map, Crosshair,
-    Compass, Swords, NotebookPen, UserCog, Key
+    Compass, Swords, NotebookPen, UserCog, Key, Calculator
 } from 'lucide-react'
 
 const menuItems = [
@@ -38,6 +38,7 @@ const menuItems = [
 
     // 智慧工具
     { icon: Zap, label: '動態情報', path: '/intelligence', category: '智慧工具' },
+    { icon: Calculator, label: '稅務試算', path: '/tax-calculator', category: '智慧工具' },
     { icon: HelpCircle, label: '情境模擬', path: '/what-if', category: '智慧工具' },
     { icon: Gauge, label: '行為教練', path: '/behavioral-coach', category: '智慧工具' },
     { icon: Sparkles, label: '智慧增強', path: '/smart-enhancer', category: '智慧工具' },

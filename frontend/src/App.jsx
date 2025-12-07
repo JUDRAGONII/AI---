@@ -43,6 +43,7 @@ import DepthAnalysis from './pages/DepthAnalysis'  // 股價深度分析
 import ChipsAnalysis from './pages/ChipsAnalysis'  // 籌碼分析
 import MacroEconomyView from './pages/MacroEconomyView'  // 宏觀經濟
 import MarketPulse from './pages/MarketPulse'  // 市場脈搏
+import TaxCalculator from './pages/TaxCalculator'
 
 // 佔位符頁面（未來實作）
 const ComingSoon = ({ title }) => (
@@ -98,6 +99,7 @@ function App() {
             <Route path="stock-list-tw" element={<StockListTW />} />
             <Route path="stock-list-us" element={<StockListUS />} />
             <Route path="stock/:code" element={<StockDetailDemo />} />
+            <Route path="tax-calculator" element={<TaxCalculator />} />
             <Route path="market-overview" element={<MarketOverview />} />
             <Route path="depth-analysis" element={<DepthAnalysis />} />
             <Route path="chips-analysis" element={<ChipsAnalysis />} />

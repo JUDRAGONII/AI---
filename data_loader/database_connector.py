@@ -90,6 +90,19 @@ class DatabaseConnector:
                         logger.info("✅ 資料庫連接測試成功")
                         return True
             return False
+        except Exception as e:
+            logger.error(f"❌ 連接測試失敗：{e}")
+            return False
+    
+    def insert(
+        self,
+        table: str,
+        data: Dict[str, Any],
+        returning: str = None
+    ) -> Optional[Any]:
+        """
+        插入資料
+        
         Args:
             table: 表格名稱
             data: 要插入的資料字典
